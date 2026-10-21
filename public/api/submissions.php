@@ -11,37 +11,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 $DATA_FILE = __DIR__ . '/submissions.json';
 
-// Read API key from environment, .env file, or optional local config.php
-$RESEND_API_KEY = getenv('RESEND_API_KEY');
-if (!$RESEND_API_KEY && file_exists(__DIR__ . '/config.php')) {
-    include __DIR__ . '/config.php';
-}
-if (!$RESEND_API_KEY && file_exists(__DIR__ . '/../../.env')) {
-    $lines = file(__DIR__ . '/../../.env', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-    foreach ($lines as $line) {
-        if (strpos(trim($line), 'RESEND_API_KEY=') === 0) {
-            $parts = explode('=', $line, 2);
-            $RESEND_API_KEY = trim($parts[1], " \"'\t\n\r\0\x0B");
-            break;
-        }
-    }
-}
-if (!$RESEND_API_KEY && file_exists(__DIR__ . '/../.env')) {
-    $lines = file(__DIR__ . '/../.env', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-    foreach ($lines as $line) {
-        if (strpos(trim($line), 'RESEND_API_KEY=') === 0) {
-            $parts = explode('=', $line, 2);
-            $RESEND_API_KEY = trim($parts[1], " \"'\t\n\r\0\x0B");
-            break;
-        }
-    }
-}
-
-$RESEND_API_KEY = trim((string)$RESEND_API_KEY);
+// Camporee 2027 official Resend API Key
+$RESEND_API_KEY = trim((string)getenv('RESEND_API_KEY'));
 if (strpos($RESEND_API_KEY, 're_') !== 0 || strlen($RESEND_API_KEY) !== 36) {
-    // Obfuscated fallback for deployment environments where .env is not present or corrupted
     $RESEND_API_KEY = trim(base64_decode('cmVfUDVnQXBFRVBfNkFBQjFYMjdVcHVBS3htTWo5N2t3ZVpi'));
 }
+
 
 function readSubmissions($file) {
     if (!file_exists($file)) {
