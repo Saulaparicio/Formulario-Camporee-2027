@@ -1,7 +1,5 @@
 import React from 'react';
-import { User } from 'firebase/auth';
 import { ConquistadoresLogo } from './ConquistadoresLogo';
-import { GoogleWorkspaceStatus } from './GoogleWorkspaceStatus';
 import {
   Volume2,
   VolumeX,
@@ -9,7 +7,6 @@ import {
   FileSpreadsheet,
   Sparkles,
   Layers,
-  MailCheck,
 } from 'lucide-react';
 import { sounds } from '../utils/audio';
 
@@ -20,12 +17,6 @@ interface Props {
   setSoundEnabled: (val: boolean) => void;
   onOpenSubmissions: () => void;
   submissionsCount: number;
-  googleUser: User | null;
-  googleAccessToken: string | null;
-  onGoogleAuthSuccess: (user: User, token: string) => void;
-  onGoogleAuthClear: () => void;
-  sheetUrl?: string | null;
-  onOpenEmailTest: () => void;
 }
 
 export const HeaderNav: React.FC<Props> = ({
@@ -35,12 +26,6 @@ export const HeaderNav: React.FC<Props> = ({
   setSoundEnabled,
   onOpenSubmissions,
   submissionsCount,
-  googleUser,
-  googleAccessToken,
-  onGoogleAuthSuccess,
-  onGoogleAuthClear,
-  sheetUrl,
-  onOpenEmailTest,
 }) => {
   const toggleSound = () => {
     const next = !soundEnabled;
@@ -99,7 +84,7 @@ export const HeaderNav: React.FC<Props> = ({
                 sounds.playClick();
               }}
               className="relative inline-flex items-center gap-1.5 rounded-xl border border-slate-700/80 bg-slate-800/80 hover:bg-slate-700/80 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-slate-200 hover:text-white transition-all shadow-sm min-h-[38px] cursor-pointer"
-              title="Ver preinscripciones guardadas y exportar a CSV"
+              title="Ver preinscripciones registradas y exportar a CSV"
             >
               <FileSpreadsheet className="w-4 h-4 text-amber-400 shrink-0" />
               <span className="hidden sm:inline">Preinscripciones</span>
@@ -112,10 +97,10 @@ export const HeaderNav: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* Secondary Row: Mode Switcher & Google Integration Status */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-slate-800/50">
-          {/* Segmented View Mode Switcher (Touch friendly, full width on mobile) */}
-          <div className="grid grid-cols-2 p-1 rounded-xl bg-slate-900 border border-slate-800 shadow-inner sm:w-auto sm:flex sm:items-center">
+        {/* Secondary Row: Mode Switcher */}
+        <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-800/50">
+          {/* Segmented View Mode Switcher */}
+          <div className="grid grid-cols-2 p-1 rounded-xl bg-slate-900 border border-slate-800 shadow-inner w-full sm:w-auto sm:flex sm:items-center">
             <button
               type="button"
               onClick={() => {
@@ -129,7 +114,7 @@ export const HeaderNav: React.FC<Props> = ({
               }`}
             >
               <MessageSquareText className="w-3.5 h-3.5" />
-              <span>Conversacional</span>
+              <span>Modo Conversacional</span>
             </button>
 
             <button
@@ -149,31 +134,9 @@ export const HeaderNav: React.FC<Props> = ({
             </button>
           </div>
 
-          {/* Quick Integration & Test Badges (Google + Email Test) */}
-          <div className="flex items-center gap-2 justify-between sm:justify-end overflow-x-auto pb-0.5 scrollbar-none">
-            {/* Google Workspace Connection */}
-            <GoogleWorkspaceStatus
-              user={googleUser}
-              accessToken={googleAccessToken}
-              onAuthSuccess={onGoogleAuthSuccess}
-              onAuthClear={onGoogleAuthClear}
-              sheetUrl={sheetUrl}
-            />
-
-            {/* Direct Email Test to sapaser@gmail.com */}
-            <button
-              type="button"
-              onClick={() => {
-                sounds.playClick();
-                onOpenEmailTest();
-              }}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-amber-500/40 bg-amber-500/15 hover:bg-amber-500/25 px-2.5 py-1.5 text-xs font-bold text-amber-300 transition-all cursor-pointer shadow-sm hover:border-amber-400 shrink-0 min-h-[36px]"
-              title="Probar envío de correo de prueba a sapaser@gmail.com"
-            >
-              <MailCheck className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-              <span className="hidden md:inline">Prueba:</span>
-              <span className="font-mono text-[11px] text-white">sapaser@gmail.com</span>
-            </button>
+          <div className="hidden sm:flex items-center gap-2 text-xs text-slate-400">
+            <span className="flex h-2 w-2 rounded-full bg-emerald-500" />
+            <span className="text-slate-300 font-medium">Registro abierto y directo</span>
           </div>
         </div>
       </div>

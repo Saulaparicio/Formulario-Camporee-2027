@@ -285,17 +285,15 @@ export const ReviewModal: React.FC<Props> = ({
             </div>
           </div>
 
-          {/* Google Workspace notification callout */}
-          <div className="rounded-2xl bg-amber-500/10 border border-amber-500/25 p-3 text-xs text-amber-200">
-            <div className="font-semibold text-amber-300 flex items-center gap-1.5 mb-1">
-              <span className="flex h-2 w-2 rounded-full bg-amber-400" />
-              <span>Sincronización Automática Oficial:</span>
+          {/* Official registration callout */}
+          <div className="rounded-2xl bg-emerald-500/10 border border-emerald-500/25 p-3 text-xs text-emerald-200">
+            <div className="font-semibold text-emerald-300 flex items-center gap-1.5 mb-1">
+              <span className="flex h-2 w-2 rounded-full bg-emerald-400" />
+              <span>Confirmación de Registro Oficial:</span>
             </div>
             <p className="text-slate-300 text-[11px] sm:text-xs">
-              • Se guardará el Folio oficial en Google Sheets.{' '}
-              <br />• Se notificará con copia de prueba directa a{' '}
-              <strong className="text-amber-300 font-mono">sapaser@gmail.com</strong> y a{' '}
-              <strong className="text-slate-200 font-mono">departamentoja@amapanama.org</strong>.
+              • Al confirmar, se asignará tu <strong>Número de Folio Único</strong> y tu credencial digital con Código QR.
+              <br />• El registro quedará archivado centralmente y se enviará la notificación al Ministerio Juvenil AMAP 2027.
             </p>
           </div>
         </div>

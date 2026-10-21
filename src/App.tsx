@@ -4,7 +4,6 @@
  */
 
 import { useState, useEffect } from 'react';
-import { User } from 'firebase/auth';
 import { ClubFormData, SubmissionRecord } from './types/form';
 import { FORM_STEPS } from './data/formConfig';
 import { HeaderNav } from './components/HeaderNav';
@@ -13,14 +12,9 @@ import { FullFormView } from './components/FullFormView';
 import { ReviewModal } from './components/ReviewModal';
 import { SuccessView } from './components/SuccessView';
 import { SubmissionsDrawer } from './components/SubmissionsDrawer';
-import { WorkspaceConfirmDialog } from './components/WorkspaceConfirmDialog';
-import { EmailTestModal } from './components/EmailTestModal';
-import { initAuth, setAccessToken } from './services/googleAuth';
-import { appendSubmissionToSheet, findExistingSpreadsheet } from './services/googleSheets';
-import { sendCamporeeNotificationEmail } from './services/gmail';
-import { sendSubmissionViaResend } from './services/resendService';
+import { fetchServerSubmissions, submitRegistration } from './services/submissionsService';
 import { sounds } from './utils/audio';
-import { Flame, Clock, CheckCircle2, AlertCircle, RotateCcw, X } from 'lucide-react';
+import { CheckCircle2, AlertCircle, RotateCcw, X } from 'lucide-react';
 
 const INITIAL_FORM_DATA: ClubFormData = {
   clubName: '',
@@ -37,29 +31,6 @@ const INITIAL_FORM_DATA: ClubFormData = {
   paymentProofName: '',
   notes: '',
 };
-
-const INITIAL_SAMPLE_SUBMISSIONS: SubmissionRecord[] = [
-  {
-    id: 'sample-sub-1',
-    folio: 'AMAP-2027-C1984',
-    clubName: 'Club de Conquistadores Orión',
-    foundationYear: '2008',
-    clubLogo:
-      'https://www.jotform.com/uploads/sapaser/form_files/Emblema_del_Club_de_Conquistadores.svg.69e41cba3e5f68.34457135.png',
-    clubLogoName: 'emblema_orion.png',
-    church: 'Iglesia Adventista Central',
-    amapZone: '1',
-    districtPastor: 'Pr. Carlos Ramírez',
-    directorName: 'Roberto Carlos Mendoza',
-    contactPhone: '+506 8877-6655',
-    contactEmail: 'director.orion@amapclub.org',
-    paymentProof:
-      'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=400&q=80',
-    paymentProofName: 'comprobante_banco_nacional.jpg',
-    createdAt: '2026-10-15T14:30:00.000Z',
-    status: 'completado',
-  },
-];
 
 export default function App() {
   const [formData, setFormData] = useState<ClubFormData>(() => {
@@ -79,19 +50,19 @@ export default function App() {
     } catch {
       // ignore
     }
-    return INITIAL_SAMPLE_SUBMISSIONS;
+    return [];
   });
 
   const [viewMode, setViewMode] = useState<'conversational' | 'full'>('conversational');
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isReviewOpen, setIsReviewOpen] = useState(false);
-  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const [activeSubmission, setActiveSubmission] = useState<SubmissionRecord | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [isEmailTestOpen, setIsEmailTestOpen] = useState(false);
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [fullFormErrors, setFullFormErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [emailDispatched, setEmailDispatched] = useState(false);
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
     setToast({ message, type });
@@ -100,43 +71,28 @@ export default function App() {
     }, 4000);
   };
 
-  // Google Workspace Authentication and State
-  const [googleUser, setGoogleUser] = useState<User | null>(null);
-  const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
-  const [sheetUrl, setSheetUrl] = useState<string | null>(() => {
-    return localStorage.getItem('amap_camporee_sheet_url_2027') || null;
-  });
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [syncStatus, setSyncStatus] = useState<{ googleSynced: boolean; emailSent: boolean }>({
-    googleSynced: false,
-    emailSent: false,
-  });
-
-  // Initialize Firebase Auth listener
+  // Load central submissions from server on mount
   useEffect(() => {
-    const unsubscribe = initAuth(
-      (user, token) => {
-        setGoogleUser(user);
-        setGoogleAccessToken(token);
-        setAccessToken(token);
-
-        // Check if existing sheet exists
-        findExistingSpreadsheet(token).then((id) => {
-          if (id) {
-            const url = `https://docs.google.com/spreadsheets/d/${id}/edit`;
-            setSheetUrl(url);
-            localStorage.setItem('amap_camporee_sheet_url_2027', url);
-          }
-        });
-      },
-      () => {
-        setGoogleUser(null);
-        setGoogleAccessToken(null);
-        setAccessToken(null);
-      }
-    );
-
-    return () => unsubscribe();
+    fetchServerSubmissions()
+      .then((serverList) => {
+        if (serverList && serverList.length > 0) {
+          setSubmissions((prev) => {
+            const combinedMap = new Map<string, SubmissionRecord>();
+            // Add server submissions
+            serverList.forEach((s) => combinedMap.set(s.folio, s));
+            // Add any local ones not yet synced
+            prev.forEach((s) => {
+              if (!combinedMap.has(s.folio)) {
+                combinedMap.set(s.folio, s);
+              }
+            });
+            return Array.from(combinedMap.values());
+          });
+        }
+      })
+      .catch((err) => {
+        console.warn('Carga de preinscripciones del servidor:', err);
+      });
   }, []);
 
   // Handle URL deep link from scanned QR code or shared link
@@ -146,12 +102,10 @@ export default function App() {
     const folioParam = params.get('folio');
 
     if (folioParam) {
-      // First check if it already exists in stored submissions
       const existing = submissions.find((s) => s.folio.toLowerCase() === folioParam.toLowerCase());
       if (existing) {
         setActiveSubmission(existing);
       } else {
-        // Build submission record from encoded URL parameters
         const scannedRecord: SubmissionRecord = {
           id: `sub-qr-${folioParam}`,
           folio: folioParam,
@@ -182,7 +136,7 @@ export default function App() {
     }
   }, [formData]);
 
-  // Persist submissions list
+  // Persist submissions list to localStorage as offline fallback
   useEffect(() => {
     try {
       localStorage.setItem('amap_camporee_submissions_2027', JSON.stringify(submissions));
@@ -232,21 +186,17 @@ export default function App() {
     if (!validateAllFields()) {
       setIsReviewOpen(false);
       setViewMode('full');
+      showToast('Por favor completa todos los campos requeridos', 'error');
       return;
     }
 
     setIsReviewOpen(false);
-
-    // If user has Google connected, ask explicit confirmation per Workspace safety guidelines
-    if (googleAccessToken) {
-      setIsConfirmDialogOpen(true);
-    } else {
-      executeSubmissionRecord(false);
-    }
+    executeSubmissionRecord();
   };
 
-  // Create submission record and optionally sync to Google Sheets & Gmail
-  const executeSubmissionRecord = async (syncToGoogle: boolean) => {
+  // Create submission record, save centrally to server and dispatch email
+  const executeSubmissionRecord = async () => {
+    setIsSubmitting(true);
     const randomCode = Math.floor(1000 + Math.random() * 9000);
     const folio = `AMAP-2027-C${randomCode}`;
 
@@ -258,9 +208,9 @@ export default function App() {
       status: 'completado',
     };
 
+    // Update local state immediately for instant feedback
     setSubmissions((prev) => [newRecord, ...prev]);
     setActiveSubmission(newRecord);
-    setIsConfirmDialogOpen(false);
 
     // Clear form draft
     setFormData(INITIAL_FORM_DATA);
@@ -270,107 +220,19 @@ export default function App() {
       // ignore
     }
 
-    // Automated dispatch via Resend (server-side, zero login required)
-    sendSubmissionViaResend(newRecord, 'sapaser@gmail.com')
-      .then((res) => {
-        console.log('[Resend] Notificación enviada con éxito:', res.messageId);
-        setSyncStatus((prev) => ({ ...prev, emailSent: true }));
-      })
-      .catch((err) => {
-        console.info('[Resend] Envío automático:', err.message);
-      });
-
-    if (syncToGoogle && googleAccessToken) {
-      setIsSyncing(true);
-      let sheetOk = false;
-      let emailOk = false;
-
-      // 1. Append to Google Sheets
-      try {
-        const createdSheetUrl = await appendSubmissionToSheet(googleAccessToken, newRecord);
-        setSheetUrl(createdSheetUrl);
-        localStorage.setItem('amap_camporee_sheet_url_2027', createdSheetUrl);
-        sheetOk = true;
-      } catch (err: any) {
-        console.error('Error al guardar en Google Sheets:', err);
-      }
-
-      // 2. Send email copy to sapaser@gmail.com (test)
-      try {
-        const sendRes = await sendCamporeeNotificationEmail(
-          googleAccessToken,
-          newRecord,
-          googleUser?.email || undefined,
-          {
-            primaryTo: 'sapaser@gmail.com',
-            ccOfficial: false,
-            isTestMode: true,
-          }
-        );
-        emailOk = true;
-        console.log('Correo de preinscripción enviado a sapaser@gmail.com:', sendRes.messageId);
-      } catch (err: any) {
-        console.error('Error al enviar copia por Gmail:', err);
-      }
-
-      setSyncStatus({ googleSynced: sheetOk, emailSent: emailOk });
-      setIsSyncing(false);
-    } else {
-      setSyncStatus({ googleSynced: false, emailSent: false });
-    }
-  };
-
-  // Sync an active submission manually if connected later
-  const handleSyncCurrentSubmission = async () => {
-    if (!activeSubmission || !googleAccessToken) return;
-    setIsSyncing(true);
+    // Save to central server and trigger Resend email
     try {
-      const createdSheetUrl = await appendSubmissionToSheet(googleAccessToken, activeSubmission);
-      setSheetUrl(createdSheetUrl);
-      localStorage.setItem('amap_camporee_sheet_url_2027', createdSheetUrl);
-      const sendRes = await sendCamporeeNotificationEmail(
-        googleAccessToken,
-        activeSubmission,
-        googleUser?.email || undefined,
-        {
-          primaryTo: 'sapaser@gmail.com',
-          ccOfficial: false,
-          isTestMode: true,
-        }
-      );
-      setSyncStatus({ googleSynced: true, emailSent: true });
+      const result = await submitRegistration(newRecord);
+      setEmailDispatched(result.emailSent ?? true);
       sounds.playSuccess();
-      console.log('Sincronización manual completada con éxito. Message ID:', sendRes.messageId);
+      showToast(`¡Preinscripción oficial enviada! Folio: ${folio}`, 'success');
     } catch (err: any) {
-      console.error('Error al sincronizar:', err);
-      sounds.playError();
+      console.warn('Guardado en servidor falló o sin conexión:', err);
+      // Even if offline, local registration succeeded
+      setEmailDispatched(false);
+      showToast(`Preinscripción guardada localmente. Folio: ${folio}`, 'info');
     } finally {
-      setIsSyncing(false);
-    }
-  };
-
-  // Sync all submissions to Google Sheets from the drawer
-  const handleSyncAllToSheet = async () => {
-    if (!googleAccessToken) {
-      return;
-    }
-
-    if (submissions.length === 0) return;
-
-    setIsSyncing(true);
-    try {
-      let finalUrl = '';
-      for (const sub of submissions) {
-        finalUrl = await appendSubmissionToSheet(googleAccessToken, sub);
-      }
-      setSheetUrl(finalUrl);
-      localStorage.setItem('amap_camporee_sheet_url_2027', finalUrl);
-      sounds.playSuccess();
-      showToast('¡Todos los clubes fueron sincronizados con éxito en Google Sheets!', 'success');
-    } catch (err: any) {
-      showToast(`Error durante la sincronización: ${err.message || 'Error'}`, 'error');
-    } finally {
-      setIsSyncing(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -401,17 +263,17 @@ export default function App() {
 
   return (
     <div className="relative min-h-screen text-slate-100 flex flex-col selection:bg-amber-500 selection:text-slate-950 font-sans">
-      {/* Background Image: Panama City sunrise framed by rainforest */}
+      {/* Background Image */}
       <div
         className="fixed inset-0 -z-20 bg-cover bg-center bg-no-repeat"
         style={{
           backgroundImage: `url('/assets/aistudio/Jungle_Framing_a_Sunlit_Future_City_f007bbaf.png')`,
         }}
       />
-      {/* Cinematic dark tint with subtle blur for maximum contrast and legibility */}
+      {/* Cinematic dark tint with subtle blur */}
       <div className="fixed inset-0 -z-10 bg-gradient-to-b from-slate-950/92 via-slate-950/80 to-slate-950/95 backdrop-blur-[1.5px]" />
 
-      {/* Camporee Header with Google Workspace Integration */}
+      {/* Camporee Header */}
       <HeaderNav
         viewMode={viewMode}
         setViewMode={setViewMode}
@@ -419,44 +281,11 @@ export default function App() {
         setSoundEnabled={setSoundEnabled}
         onOpenSubmissions={() => setIsDrawerOpen(true)}
         submissionsCount={submissions.length}
-        googleUser={googleUser}
-        googleAccessToken={googleAccessToken}
-        onGoogleAuthSuccess={(user, token) => {
-          setGoogleUser(user);
-          setGoogleAccessToken(token);
-          setAccessToken(token);
-        }}
-        onGoogleAuthClear={() => {
-          setGoogleUser(null);
-          setGoogleAccessToken(null);
-          setAccessToken(null);
-        }}
-        sheetUrl={sheetUrl}
-        onOpenEmailTest={() => setIsEmailTestOpen(true)}
       />
 
-      {/* Main Container (Responsive mobile padding) */}
+      {/* Main Container */}
       <main className="flex-1 py-3.5 sm:py-8 px-3 sm:px-6 max-w-6xl mx-auto w-full">
-        {/* Deadline & Official Camporee Banner */}
-        <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-sky-950/40 to-slate-900 p-3 sm:p-4 border border-amber-500/30 text-xs sm:text-sm shadow-lg shadow-amber-500/5">
-          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-            <div className="flex items-center gap-1.5 text-amber-300 font-bold">
-              <Flame className="w-4 h-4 text-amber-400 shrink-0" />
-              <span>VII Camporee AMAP 2027</span>
-            </div>
-            <span className="hidden sm:inline text-slate-500">•</span>
-            <span className="text-sky-300 font-extrabold uppercase tracking-wide text-[11px] sm:text-xs">
-              «Preparados Para Su Regreso»
-            </span>
-          </div>
 
-          <div className="flex items-center gap-1.5 text-slate-300 bg-slate-950/60 px-2.5 py-1 rounded-xl border border-slate-800 self-start sm:self-auto text-[11px] sm:text-xs">
-            <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-            <span>
-              Cierre: <strong className="text-amber-300 font-bold">30 de octubre de 2026</strong>
-            </span>
-          </div>
-        </div>
 
         {/* View Switch */}
         {activeSubmission ? (
@@ -464,12 +293,7 @@ export default function App() {
             submission={activeSubmission}
             onNewRegistration={() => setActiveSubmission(null)}
             onViewAllSubmissions={() => setIsDrawerOpen(true)}
-            sheetUrl={sheetUrl}
-            googleSynced={syncStatus.googleSynced}
-            emailSent={syncStatus.emailSent}
-            onSyncGoogleNow={googleAccessToken ? handleSyncCurrentSubmission : undefined}
-            isSyncingGoogle={isSyncing}
-            onOpenEmailTest={() => setIsEmailTestOpen(true)}
+            emailSent={emailDispatched}
           />
         ) : viewMode === 'conversational' ? (
           <ConversationalForm
@@ -503,19 +327,6 @@ export default function App() {
           setViewMode('conversational');
         }}
         onConfirmSubmit={handleReviewConfirmed}
-        googleConnected={!!googleAccessToken}
-        userEmail={googleUser?.email || undefined}
-      />
-
-      {/* Explicit Workspace Confirmation Dialog */}
-      <WorkspaceConfirmDialog
-        isOpen={isConfirmDialogOpen}
-        onClose={() => setIsConfirmDialogOpen(false)}
-        onConfirm={() => executeSubmissionRecord(true)}
-        onSkipGoogle={() => executeSubmissionRecord(false)}
-        formData={formData}
-        userEmail={googleUser?.email || undefined}
-        isProcessing={isSyncing}
       />
 
       {/* Submissions Admin Drawer */}
@@ -527,25 +338,9 @@ export default function App() {
         onSelectSubmission={(record) => {
           setActiveSubmission(record);
         }}
-        sheetUrl={sheetUrl}
-        onSyncAllToSheet={googleAccessToken ? handleSyncAllToSheet : undefined}
-        isSyncingAll={isSyncing}
       />
 
-      {/* Direct Email Test Modal (sapaser@gmail.com) */}
-      <EmailTestModal
-        isOpen={isEmailTestOpen}
-        onClose={() => setIsEmailTestOpen(false)}
-        googleUser={googleUser}
-        googleAccessToken={googleAccessToken}
-        onGoogleAuthSuccess={(user, token) => {
-          setGoogleUser(user);
-          setGoogleAccessToken(token);
-          setAccessToken(token);
-        }}
-      />
-
-      {/* In-app Toast Feedback Banner (Mobile & Desktop) */}
+      {/* In-app Toast Feedback Banner */}
       {toast && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 max-w-md w-[92%] sm:w-auto shadow-2xl transition-all animate-bounce">
           <div

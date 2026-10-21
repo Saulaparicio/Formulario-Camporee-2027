@@ -1,6 +1,6 @@
 {
   "name": "Preinscripción VII Camporee AMAP 2027",
-  "description": "Formulario conversacional interactivo y amigable para la preinscripción oficial de clubes al VII Camporee AMAP 2027.",
+  "description": "Formulario oficial de preinscripción de clubes al VII Camporee AMAP 2027.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": []
 }
