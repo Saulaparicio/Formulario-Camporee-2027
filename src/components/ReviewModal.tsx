@@ -2,6 +2,7 @@ import React from 'react';
 import { ClubFormData } from '../types/form';
 import { X, Edit3, Send, Shield, User, FileText, CheckCircle2 } from 'lucide-react';
 import { sounds } from '../utils/audio';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface Props {
   isOpen: boolean;
@@ -22,11 +23,25 @@ export const ReviewModal: React.FC<Props> = ({
   googleConnected,
   userEmail,
 }) => {
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md overflow-y-auto">
-      <div className="relative w-full max-w-2xl rounded-3xl border border-slate-700 bg-slate-900 p-4 sm:p-7 shadow-2xl my-4 sm:my-8 flex flex-col max-h-[90vh]">
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          key="review-modal-backdrop"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md overflow-y-auto"
+        >
+          <motion.div
+            key="review-modal-dialog"
+            initial={{ opacity: 0, y: 28, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.96 }}
+            transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+            className="relative w-full max-w-2xl rounded-3xl border border-slate-700 bg-slate-900 p-4 sm:p-7 shadow-2xl my-4 sm:my-8 flex flex-col max-h-[90vh]"
+          >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-800 pb-3 sm:pb-4 mb-4 shrink-0">
           <div className="flex items-center gap-2.5 sm:gap-3">
@@ -306,7 +321,9 @@ export const ReviewModal: React.FC<Props> = ({
             <span>Confirmar y Enviar Preinscripción</span>
           </button>
         </div>
-      </div>
-    </div>
-  );
+      </motion.div>
+    </motion.div>
+  )}
+</AnimatePresence>
+);
 };

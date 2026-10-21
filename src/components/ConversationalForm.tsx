@@ -3,6 +3,7 @@ import { FormStepConfig, ClubFormData } from '../types/form';
 import { FORM_STEPS } from '../data/formConfig';
 import { FileUploadField } from './FileUploadField';
 import { sounds } from '../utils/audio';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowRight,
   ArrowLeft,
@@ -23,6 +24,12 @@ import {
   FileCheck,
   AlertCircle,
   CheckCircle2,
+  Tent,
+  Church,
+  Image as ImageIcon,
+  BookOpen,
+  UserCheck,
+  Shield,
 } from 'lucide-react';
 
 interface Props {
@@ -264,32 +271,164 @@ export const ConversationalForm: React.FC<Props> = ({
 
   const sectionMeta = getSectionMetadata();
 
-  const getStepIcon = () => {
-    switch (currentStep.id) {
+  const isValuePresent = (field: keyof ClubFormData) => {
+    const val = formData[field];
+    if (typeof val === 'string') return val.trim().length > 0;
+    return val !== null && val !== undefined;
+  };
+
+  const isCurrentStepAnswered = isValuePresent(currentStep.id as keyof ClubFormData);
+
+  const getStepVisualConfig = (stepId: string) => {
+    switch (stepId) {
       case 'clubName':
-        return <Flame className="w-4 h-4 text-amber-400" />;
+        return {
+          icon: <Tent className="w-6 h-6 sm:w-8 sm:h-8 text-amber-400 drop-shadow-md" />,
+          smallIcon: <Tent className="w-3.5 h-3.5 text-amber-400" />,
+          label: 'Nombre del Club',
+          gradientBg: 'from-amber-500/30 via-yellow-600/15 to-slate-950',
+          borderColor: 'border-amber-400/70',
+          shadowColor: 'shadow-amber-500/25',
+          glowTag: '⛺ Campamento & Hermandad',
+        };
       case 'foundationYear':
-        return <Calendar className="w-4 h-4 text-amber-400" />;
+        return {
+          icon: <Calendar className="w-6 h-6 sm:w-8 sm:h-8 text-yellow-400 drop-shadow-md" />,
+          smallIcon: <Calendar className="w-3.5 h-3.5 text-yellow-400" />,
+          label: 'Año de Fundación',
+          gradientBg: 'from-yellow-500/30 via-amber-600/15 to-slate-950',
+          borderColor: 'border-yellow-400/70',
+          shadowColor: 'shadow-yellow-500/25',
+          glowTag: '📅 Legado e Historia',
+        };
       case 'clubLogo':
-        return <Sparkles className="w-4 h-4 text-amber-400" />;
+        if (formData.clubLogo) {
+          return {
+            icon: (
+              <img
+                src={formData.clubLogo}
+                alt="Logo del Club"
+                className="w-full h-full object-contain rounded-xl p-0.5 drop-shadow"
+              />
+            ),
+            smallIcon: <ImageIcon className="w-3.5 h-3.5 text-sky-400" />,
+            label: 'Logo del Club',
+            gradientBg: 'from-sky-500/30 via-blue-600/15 to-slate-950',
+            borderColor: 'border-sky-400/70',
+            shadowColor: 'shadow-sky-500/25',
+            glowTag: '🛡️ Logo Oficial Cargado',
+          };
+        }
+        return {
+          icon: <ImageIcon className="w-6 h-6 sm:w-8 sm:h-8 text-sky-400 drop-shadow-md" />,
+          smallIcon: <ImageIcon className="w-3.5 h-3.5 text-sky-400" />,
+          label: 'Logo del Club',
+          gradientBg: 'from-sky-500/30 via-blue-600/15 to-slate-950',
+          borderColor: 'border-sky-400/70',
+          shadowColor: 'shadow-sky-500/25',
+          glowTag: '🎨 Estandarte del Club',
+        };
       case 'church':
-        return <Building className="w-4 h-4 text-amber-400" />;
+        return {
+          icon: <Church className="w-6 h-6 sm:w-8 sm:h-8 text-emerald-400 drop-shadow-md" />,
+          smallIcon: <Church className="w-3.5 h-3.5 text-emerald-400" />,
+          label: 'Iglesia / Sede',
+          gradientBg: 'from-emerald-500/30 via-teal-600/15 to-slate-950',
+          borderColor: 'border-emerald-400/70',
+          shadowColor: 'shadow-emerald-500/25',
+          glowTag: '⛪ Iglesia Local',
+        };
       case 'amapZone':
-        return <MapPin className="w-4 h-4 text-amber-400" />;
+        return {
+          icon: <Compass className="w-6 h-6 sm:w-8 sm:h-8 text-purple-400 drop-shadow-md" />,
+          smallIcon: <Compass className="w-3.5 h-3.5 text-purple-400" />,
+          label: 'Zona AMAP',
+          gradientBg: 'from-purple-500/30 via-indigo-600/15 to-slate-950',
+          borderColor: 'border-purple-400/70',
+          shadowColor: 'shadow-purple-500/25',
+          glowTag: '🧭 Zona Geográfica',
+        };
       case 'districtPastor':
-        return <User className="w-4 h-4 text-amber-400" />;
+        return {
+          icon: <BookOpen className="w-6 h-6 sm:w-8 sm:h-8 text-blue-400 drop-shadow-md" />,
+          smallIcon: <BookOpen className="w-3.5 h-3.5 text-blue-400" />,
+          label: 'Pastor Distrital',
+          gradientBg: 'from-blue-500/30 via-sky-600/15 to-slate-950',
+          borderColor: 'border-blue-400/70',
+          shadowColor: 'shadow-blue-500/25',
+          glowTag: '📖 Acompañamiento Pastoral',
+        };
       case 'directorName':
-        return <User className="w-4 h-4 text-sky-400" />;
+        return {
+          icon: <UserCheck className="w-6 h-6 sm:w-8 sm:h-8 text-amber-300 drop-shadow-md" />,
+          smallIcon: <UserCheck className="w-3.5 h-3.5 text-amber-300" />,
+          label: 'Director(a)',
+          gradientBg: 'from-amber-500/30 via-orange-600/15 to-slate-950',
+          borderColor: 'border-amber-400/70',
+          shadowColor: 'shadow-amber-500/25',
+          glowTag: '👤 Liderazgo del Batallón',
+        };
       case 'contactPhone':
-        return <Phone className="w-4 h-4 text-sky-400" />;
+        return {
+          icon: <Phone className="w-6 h-6 sm:w-8 sm:h-8 text-emerald-400 drop-shadow-md" />,
+          smallIcon: <Phone className="w-3.5 h-3.5 text-emerald-400" />,
+          label: 'WhatsApp / Teléfono',
+          gradientBg: 'from-emerald-500/30 via-green-600/15 to-slate-950',
+          borderColor: 'border-emerald-400/70',
+          shadowColor: 'shadow-emerald-500/25',
+          glowTag: '📱 WhatsApp Directo',
+        };
       case 'contactEmail':
-        return <Mail className="w-4 h-4 text-sky-400" />;
+        return {
+          icon: <Mail className="w-6 h-6 sm:w-8 sm:h-8 text-sky-400 drop-shadow-md" />,
+          smallIcon: <Mail className="w-3.5 h-3.5 text-sky-400" />,
+          label: 'Correo Electrónico',
+          gradientBg: 'from-sky-500/30 via-cyan-600/15 to-slate-950',
+          borderColor: 'border-sky-400/70',
+          shadowColor: 'shadow-sky-500/25',
+          glowTag: '✉️ Circulares y Confirmación',
+        };
       case 'paymentProof':
-        return <Receipt className="w-4 h-4 text-emerald-400" />;
+        if (formData.paymentProof) {
+          return {
+            icon: (
+              <img
+                src={formData.paymentProof}
+                alt="Comprobante"
+                className="w-full h-full object-contain rounded-xl p-0.5 drop-shadow"
+              />
+            ),
+            smallIcon: <Receipt className="w-3.5 h-3.5 text-emerald-400" />,
+            label: 'Comprobante de Pago',
+            gradientBg: 'from-emerald-500/30 via-teal-600/15 to-slate-950',
+            borderColor: 'border-emerald-400/70',
+            shadowColor: 'shadow-emerald-500/25',
+            glowTag: '🧾 Comprobante Adjunto',
+          };
+        }
+        return {
+          icon: <Receipt className="w-6 h-6 sm:w-8 sm:h-8 text-emerald-300 drop-shadow-md" />,
+          smallIcon: <Receipt className="w-3.5 h-3.5 text-emerald-300" />,
+          label: 'Comprobante de Pago',
+          gradientBg: 'from-emerald-500/30 via-teal-600/15 to-slate-950',
+          borderColor: 'border-emerald-400/70',
+          shadowColor: 'shadow-emerald-500/25',
+          glowTag: '🧾 Depósito / Transferencia',
+        };
       default:
-        return <Compass className="w-4 h-4 text-amber-400" />;
+        return {
+          icon: <Flame className="w-6 h-6 sm:w-8 sm:h-8 text-amber-400 drop-shadow-md" />,
+          smallIcon: <Flame className="w-3.5 h-3.5 text-amber-400" />,
+          label: 'Pregunta',
+          gradientBg: 'from-amber-500/30 via-amber-600/15 to-slate-950',
+          borderColor: 'border-amber-400/70',
+          shadowColor: 'shadow-amber-500/25',
+          glowTag: '🏕️ Camporee 2027',
+        };
     }
   };
+
+  const currentVisual = getStepVisualConfig(currentStep.id);
 
   // Quick email domain buttons for fast input
   const emailDomains = ['@gmail.com', '@hotmail.com', '@outlook.com', '@yahoo.com'];
@@ -304,7 +443,7 @@ export const ConversationalForm: React.FC<Props> = ({
         <div className="flex items-center justify-between gap-2 sm:gap-4 mb-2">
           <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
             <span className={`inline-flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 rounded-full text-[11px] sm:text-xs font-bold border bg-gradient-to-r ${sectionMeta.color} truncate`}>
-              {getStepIcon()}
+              {currentVisual.smallIcon}
               <span>{sectionMeta.label}</span>
             </span>
             <span className="text-[11px] sm:text-xs font-semibold text-slate-400 shrink-0">
@@ -333,23 +472,77 @@ export const ConversationalForm: React.FC<Props> = ({
             style={{ width: `${progressPercent}%` }}
           />
         </div>
+
+        {/* Step Icon Track: Visual representative icon for each step */}
+        <div className="mt-2.5 pt-2 border-t border-slate-800/80 flex items-center justify-between gap-1 overflow-x-auto pb-0.5 scrollbar-none">
+          {FORM_STEPS.map((step, idx) => {
+            const stepVisual = getStepVisualConfig(step.id);
+            const isAnswered = isValuePresent(step.id as keyof ClubFormData);
+            const isCurrent = idx === currentStepIndex;
+
+            return (
+              <button
+                key={step.id}
+                type="button"
+                onClick={() => {
+                  sounds.playClick();
+                  setCurrentStepIndex(idx);
+                }}
+                className={`group relative flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-xl transition-all cursor-pointer shrink-0 border ${
+                  isCurrent
+                    ? 'border-amber-400 bg-amber-500/20 shadow-md shadow-amber-500/20 scale-110 ring-1 ring-amber-400/50'
+                    : isAnswered
+                    ? 'border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400'
+                    : 'border-slate-800 bg-slate-900/60 hover:bg-slate-800 text-slate-500 hover:text-slate-300'
+                }`}
+                title={`Paso ${idx + 1}: ${step.questionTitle} (${isAnswered ? 'Completado' : 'Pendiente'})`}
+              >
+                {stepVisual.smallIcon}
+                {isAnswered && !isCurrent && (
+                  <span className="absolute -top-1 -right-1 flex h-2 w-2 items-center justify-center rounded-full bg-emerald-500 ring-1 ring-slate-900" />
+                )}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Main Interactive Conversational Card */}
       <div className="relative overflow-hidden rounded-3xl border-2 border-amber-500/30 bg-gradient-to-b from-slate-900/95 via-slate-900 to-slate-950 p-4 sm:p-8 shadow-2xl backdrop-blur-xl pb-24 sm:pb-8">
-        {/* Guía Conversacional Header with official Camporee emblem */}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={currentStep.id}
+            initial={{ opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -14 }}
+            transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+          >
+            {/* Guía Conversacional Header with representative step icon avatar */}
         <div className="flex items-start gap-3 sm:gap-4 mb-4 sm:mb-6">
           <div className="relative flex-shrink-0">
-            <div className="flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500/20 via-sky-500/15 to-slate-900 p-1 border-2 border-amber-400/50 shadow-lg shadow-amber-500/20">
-              <img
-                src="/assets/aistudio/logo_preparados_para_su_regreso_transparente_b4357a91.png"
-                alt="Logo Oficial Camporee"
-                className="w-full h-full object-contain drop-shadow"
-              />
+            <div
+              className={`flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-2xl bg-gradient-to-br ${currentVisual.gradientBg} p-2 border-2 ${currentVisual.borderColor} shadow-lg ${currentVisual.shadowColor} transition-all duration-300`}
+              title={currentVisual.label}
+            >
+              {currentVisual.icon}
             </div>
-            <div className="absolute -bottom-1 -right-1 flex h-4 w-4 sm:h-5 sm:w-5 items-center justify-center rounded-full bg-emerald-500 text-[9px] sm:text-[10px] text-white font-bold ring-2 ring-slate-900 shadow">
-              ✓
-            </div>
+
+            {/* Status badge: checkmark if answered, step number if pending */}
+            {isCurrentStepAnswered ? (
+              <div
+                className="absolute -bottom-1 -right-1 flex h-4 w-4 sm:h-5 sm:w-5 items-center justify-center rounded-full bg-emerald-500 text-[9px] sm:text-[10px] text-white font-bold ring-2 ring-slate-900 shadow animate-in zoom-in-50"
+                title="Paso completado"
+              >
+                ✓
+              </div>
+            ) : (
+              <div
+                className="absolute -bottom-1 -right-1 flex h-4 w-4 sm:h-5 sm:w-5 items-center justify-center rounded-full bg-amber-500 text-[9px] sm:text-[10px] text-slate-950 font-black ring-2 ring-slate-900 shadow"
+                title={`Paso ${currentStepIndex + 1}`}
+              >
+                {currentStepIndex + 1}
+              </div>
+            )}
           </div>
 
           <div className="flex-1 min-w-0">
@@ -357,6 +550,9 @@ export const ConversationalForm: React.FC<Props> = ({
               <div className="flex flex-wrap items-center gap-1 sm:gap-1.5 min-w-0">
                 <span className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-amber-400 truncate">
                   Guía AMAP 2027
+                </span>
+                <span className="inline-flex text-[10px] sm:text-[11px] font-bold text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/30 truncate">
+                  {currentVisual.glowTag}
                 </span>
                 <span className="hidden sm:inline-flex text-[11px] font-bold text-sky-400 bg-sky-500/10 px-2 py-0.5 rounded-full border border-sky-500/30 truncate">
                   «Preparados Para Su Regreso»
@@ -684,6 +880,8 @@ export const ConversationalForm: React.FC<Props> = ({
             </div>
           )}
         </div>
+      </motion.div>
+    </AnimatePresence>
 
         {/* Desktop inline action buttons / Non-mobile */}
         <div className="hidden sm:flex mt-8 items-center justify-between gap-4 pt-4 border-t border-slate-800">

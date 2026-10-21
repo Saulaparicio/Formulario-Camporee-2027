@@ -18,6 +18,7 @@ import { EmailTestModal } from './components/EmailTestModal';
 import { initAuth, setAccessToken } from './services/googleAuth';
 import { appendSubmissionToSheet, findExistingSpreadsheet } from './services/googleSheets';
 import { sendCamporeeNotificationEmail } from './services/gmail';
+import { sendSubmissionViaResend } from './services/resendService';
 import { sounds } from './utils/audio';
 import { Flame, Clock, CheckCircle2, AlertCircle, RotateCcw, X } from 'lucide-react';
 
@@ -268,6 +269,16 @@ export default function App() {
     } catch {
       // ignore
     }
+
+    // Automated dispatch via Resend (server-side, zero login required)
+    sendSubmissionViaResend(newRecord, 'sapaser@gmail.com')
+      .then((res) => {
+        console.log('[Resend] Notificación enviada con éxito:', res.messageId);
+        setSyncStatus((prev) => ({ ...prev, emailSent: true }));
+      })
+      .catch((err) => {
+        console.info('[Resend] Envío automático:', err.message);
+      });
 
     if (syncToGoogle && googleAccessToken) {
       setIsSyncing(true);
