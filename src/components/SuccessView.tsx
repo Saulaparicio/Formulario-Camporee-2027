@@ -166,22 +166,28 @@ export const SuccessView: React.FC<Props> = ({
           ) : null}
 
           {emailSent ? (
-            <div className="flex flex-wrap items-center justify-center gap-2 rounded-xl bg-blue-500/15 border border-blue-500/30 px-3.5 py-1.5 text-xs text-blue-300">
-              <Mail className="w-4 h-4 text-blue-400 shrink-0" />
-              <span>
-                Copia de prueba entregada a <strong className="font-mono text-amber-300">sapaser@gmail.com</strong>
-              </span>
-              <span className="text-slate-400">• AMAP oficial: departamentoja@amapanama.org</span>
+            <div className="flex flex-col items-center gap-1.5 rounded-2xl bg-emerald-950/40 border border-emerald-500/40 p-3 text-xs text-emerald-300 w-full">
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>
+                  Confirmación oficial despachada a <strong className="font-mono text-amber-300">sapaser@gmail.com</strong>
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-300 text-center">
+                📌 <strong>Aviso Gmail:</strong> Si no aparece de inmediato en tu bandeja principal, revisa la carpeta <span className="text-amber-300 underline font-semibold">Spam</span> o la pestaña <span className="text-amber-300 underline font-semibold">Promociones</span> y marca <em>"No es spam"</em>.
+              </p>
             </div>
           ) : onOpenEmailTest ? (
-            <button
-              type="button"
-              onClick={onOpenEmailTest}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-blue-500/15 hover:bg-blue-500/25 border border-blue-500/30 px-3 py-1.5 text-xs font-semibold text-blue-300 transition-colors"
-            >
-              <Mail className="w-4 h-4 text-blue-400" />
-              <span>Enviar prueba a sapaser@gmail.com</span>
-            </button>
+            <div className="flex flex-col sm:flex-row items-center gap-2">
+              <button
+                type="button"
+                onClick={onOpenEmailTest}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/40 px-3.5 py-1.5 text-xs font-semibold text-blue-300 transition-colors"
+              >
+                <Mail className="w-4 h-4 text-blue-400" />
+                <span>Enviar copia a sapaser@gmail.com</span>
+              </button>
+            </div>
           ) : null}
         </div>
 

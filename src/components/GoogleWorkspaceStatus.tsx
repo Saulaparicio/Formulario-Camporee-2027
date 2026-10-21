@@ -31,7 +31,7 @@ export const GoogleWorkspaceStatus: React.FC<Props> = ({
         sounds.playSuccess();
       }
     } catch (err: any) {
-      alert(`No se pudo conectar con Google: ${err.message || 'Error desconocido'}`);
+      console.error('No se pudo conectar con Google:', err);
     } finally {
       setIsSigningIn(false);
     }

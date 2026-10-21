@@ -20,6 +20,9 @@ export const SCOPES = [
 
 const provider = new GoogleAuthProvider();
 SCOPES.forEach((scope) => provider.addScope(scope));
+provider.setCustomParameters({
+  prompt: 'consent',
+});
 
 let isSigningIn = false;
 let cachedAccessToken: string | null = null;
@@ -42,13 +45,18 @@ export const initAuth = (
   });
 };
 
-export const googleSignIn = async (): Promise<{ user: User; accessToken: string } | null> => {
+export const googleSignIn = async (forceReconsent = false): Promise<{ user: User; accessToken: string } | null> => {
   try {
     isSigningIn = true;
+    if (forceReconsent) {
+      provider.setCustomParameters({
+        prompt: 'select_account consent',
+      });
+    }
     const result = await signInWithPopup(auth, provider);
     const credential = GoogleAuthProvider.credentialFromResult(result);
     if (!credential?.accessToken) {
-      throw new Error('No se pudo obtener el token de acceso de Google');
+      throw new Error('No se pudo obtener el token de acceso de Google con los permisos solicitados');
     }
 
     cachedAccessToken = credential.accessToken;

@@ -3,11 +3,42 @@ import { SubmissionRecord } from '../types/form';
 export const PRIMARY_TEST_EMAIL = 'sapaser@gmail.com';
 export const OFFICIAL_NOTIFICATION_EMAIL = 'departamentoja@amapanama.org';
 
-function utf8ToBase64Url(str: string): string {
-  // Use TextEncoder to handle all UTF-8 characters safely
+/**
+ * Encodes a string for MIME header per RFC 2047 (B-encoding)
+ */
+function encodeRFC2047(str: string): string {
   const bytes = new TextEncoder().encode(str);
   let binary = '';
-  for (let i = 0; i < bytes.byteLength; i++) {
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return `=?UTF-8?B?${btoa(binary)}?=`;
+}
+
+/**
+ * Converts a UTF-8 string to base64, split into chunks of at most 76 characters per RFC 2045
+ */
+function encodeBodyBase64Chunked(content: string, chunkSize = 76): string {
+  const bytes = new TextEncoder().encode(content);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  const base64 = btoa(binary);
+  const chunks: string[] = [];
+  for (let i = 0; i < base64.length; i += chunkSize) {
+    chunks.push(base64.slice(i, i + chunkSize));
+  }
+  return chunks.join('\r\n');
+}
+
+/**
+ * Converts RFC 2822 string into base64url format for Gmail API messages.send
+ */
+function toBase64Url(str: string): string {
+  const bytes = new TextEncoder().encode(str);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
     binary += String.fromCharCode(bytes[i]);
   }
   return btoa(binary)
@@ -16,24 +47,80 @@ function utf8ToBase64Url(str: string): string {
     .replace(/=+$/, '');
 }
 
+/**
+ * Builds a strict RFC 2822 MIME message with CRLF separation and proper headers
+ */
+export function buildRfc2822Message({
+  to,
+  from,
+  cc,
+  replyTo,
+  subject,
+  htmlBody,
+}: {
+  to: string;
+  from?: string;
+  cc?: string;
+  replyTo?: string;
+  subject: string;
+  htmlBody: string;
+}): string {
+  const headers: string[] = [
+    `To: ${to}`,
+  ];
+
+  if (from) {
+    headers.push(`From: ${from}`);
+  }
+  if (cc && cc.trim()) {
+    headers.push(`Cc: ${cc.trim()}`);
+  }
+  if (replyTo && replyTo.trim()) {
+    headers.push(`Reply-To: ${replyTo.trim()}`);
+  }
+
+  headers.push(`Subject: ${encodeRFC2047(subject)}`);
+  headers.push(`Date: ${new Date().toUTCString()}`);
+  headers.push('MIME-Version: 1.0');
+  headers.push('Content-Type: text/html; charset=UTF-8');
+  headers.push('Content-Transfer-Encoding: base64');
+
+  const chunkedBody = encodeBodyBase64Chunked(htmlBody);
+
+  // RFC 2822: Headers and Body MUST be separated by an empty line (\r\n\r\n)
+  return headers.join('\r\n') + '\r\n\r\n' + chunkedBody;
+}
+
 export interface SendEmailOptions {
   primaryTo?: string;
   ccOfficial?: boolean;
   isTestMode?: boolean;
 }
 
+export interface SendEmailResult {
+  success: boolean;
+  messageId: string;
+  threadId?: string;
+  recipient: string;
+  timestamp: string;
+  labelIds?: string[];
+}
+
+/**
+ * Sends notification email when a club registration is submitted
+ */
 export async function sendCamporeeNotificationEmail(
   accessToken: string,
   submission: SubmissionRecord,
   userEmail?: string,
   options?: SendEmailOptions
-): Promise<{ success: boolean; messageId?: string; recipient: string }> {
-  // User explicitly asked for a test to arrive at sapaser@gmail.com
+): Promise<SendEmailResult> {
+  // Destination: sapaser@gmail.com by default
   const to = options?.primaryTo || PRIMARY_TEST_EMAIL;
   
-  // CC list includes official email and director's contact email if provided
+  // Optional CC list (official inbox and contact email if different)
   const ccList: string[] = [];
-  if (options?.ccOfficial !== false && to !== OFFICIAL_NOTIFICATION_EMAIL) {
+  if (options?.ccOfficial && to !== OFFICIAL_NOTIFICATION_EMAIL) {
     ccList.push(OFFICIAL_NOTIFICATION_EMAIL);
   }
   if (submission.contactEmail && submission.contactEmail !== to) {
@@ -44,8 +131,9 @@ export async function sendCamporeeNotificationEmail(
   const subjectPrefix = options?.isTestMode !== false ? '[PRUEBA]' : '';
   const subject = `${subjectPrefix} 🏕️ Preinscripción VII Camporee AMAP 2027: Club ${submission.clubName} (${submission.folio})`.trim();
 
-  const htmlBody = `
-<!DOCTYPE html>
+  const senderFrom = userEmail ? `"VII Camporee AMAP 2027" <${userEmail}>` : undefined;
+
+  const htmlBody = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
@@ -144,22 +232,18 @@ export async function sendCamporeeNotificationEmail(
     </div>
   </div>
 </body>
-</html>
-  `;
+</html>`;
 
-  const emailLines = [
-    `To: ${to}`,
-    ccHeader ? `Cc: ${ccHeader}` : '',
-    userEmail ? `Reply-To: ${userEmail}` : '',
-    `Subject: =?UTF-8?B?${btoa(unescape(encodeURIComponent(subject)))}?=`,
-    'MIME-Version: 1.0',
-    'Content-Type: text/html; charset=UTF-8',
-    'Content-Transfer-Encoding: base64',
-    '',
-    btoa(unescape(encodeURIComponent(htmlBody))),
-  ].filter(Boolean);
+  const mimeMessage = buildRfc2822Message({
+    to,
+    from: senderFrom,
+    cc: ccHeader || undefined,
+    replyTo: userEmail,
+    subject,
+    htmlBody,
+  });
 
-  const raw = utf8ToBase64Url(emailLines.join('\r\n'));
+  const raw = toBase64Url(mimeMessage);
 
   const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
     method: 'POST',
@@ -171,12 +255,33 @@ export async function sendCamporeeNotificationEmail(
   });
 
   if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.error?.message || 'Error al enviar el correo vía Gmail API');
+    let errorMsg = `Error HTTP ${res.status}`;
+    try {
+      const errJson = await res.json();
+      if (errJson.error?.message) {
+        errorMsg = errJson.error.message;
+      }
+    } catch {
+      // ignore
+    }
+    if (res.status === 403) {
+      throw new Error(`Permiso insuficiente en Gmail: ${errorMsg}. Por favor vuelve a conectar tu cuenta y asegúrate de aceptar el permiso para enviar correos.`);
+    } else if (res.status === 401) {
+      throw new Error('La sesión de Google ha expirado. Haz clic en "Conectar Google" para renovarla.');
+    }
+    throw new Error(`Error al enviar el correo vía Gmail API: ${errorMsg}`);
   }
 
   const data = await res.json();
-  return { success: true, messageId: data.id, recipient: to };
+  const now = new Date();
+  return {
+    success: true,
+    messageId: data.id,
+    threadId: data.threadId,
+    recipient: to,
+    timestamp: now.toISOString(),
+    labelIds: data.labelIds,
+  };
 }
 
 /**
@@ -186,7 +291,7 @@ export async function sendDirectTestEmail(
   accessToken: string,
   targetEmail: string = PRIMARY_TEST_EMAIL,
   senderUser?: { email?: string | null; displayName?: string | null }
-): Promise<{ success: boolean; messageId: string; recipient: string; timestamp: string }> {
+): Promise<SendEmailResult> {
   const testFolio = `AMAP-2027-TEST-${Math.floor(1000 + Math.random() * 9000)}`;
   const now = new Date();
   const formattedDate = now.toLocaleString('es-PA', {
@@ -194,10 +299,12 @@ export async function sendDirectTestEmail(
     timeStyle: 'medium',
   });
 
-  const subject = `🏕️ [PRUEBA DE VERIFICACIÓN] VII Camporee AMAP 2027: sapaser@gmail.com (${testFolio})`;
+  const subject = `🏕️ [PRUEBA DE VERIFICACIÓN] VII Camporee AMAP 2027: ${targetEmail} (${testFolio})`;
+  const senderFrom = senderUser?.email
+    ? `"${senderUser.displayName || 'VII Camporee AMAP 2027'}" <${senderUser.email}>`
+    : undefined;
 
-  const htmlBody = `
-<!DOCTYPE html>
+  const htmlBody = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
@@ -274,20 +381,17 @@ export async function sendDirectTestEmail(
     </div>
   </div>
 </body>
-</html>
-  `;
+</html>`;
 
-  const emailLines = [
-    `To: ${targetEmail}`,
-    `Subject: =?UTF-8?B?${btoa(unescape(encodeURIComponent(subject)))}?=`,
-    'MIME-Version: 1.0',
-    'Content-Type: text/html; charset=UTF-8',
-    'Content-Transfer-Encoding: base64',
-    '',
-    btoa(unescape(encodeURIComponent(htmlBody))),
-  ];
+  const mimeMessage = buildRfc2822Message({
+    to: targetEmail,
+    from: senderFrom,
+    replyTo: senderUser?.email || undefined,
+    subject,
+    htmlBody,
+  });
 
-  const raw = utf8ToBase64Url(emailLines.join('\r\n'));
+  const raw = toBase64Url(mimeMessage);
 
   const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
     method: 'POST',
@@ -299,16 +403,30 @@ export async function sendDirectTestEmail(
   });
 
   if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.error?.message || 'Error al enviar la prueba de correo vía Gmail API');
+    let errorDetail = `Error HTTP ${res.status}: ${res.statusText}`;
+    try {
+      const errJson = await res.json();
+      if (errJson.error?.message) {
+        errorDetail = errJson.error.message;
+      }
+    } catch {
+      // ignore
+    }
+    if (res.status === 403) {
+      throw new Error(`Permiso insuficiente en Gmail (${errorDetail}). Por favor haz clic en "Forzar Reautorización" para otorgar el permiso de envío de correos.`);
+    } else if (res.status === 401) {
+      throw new Error('La sesión de Google ha expirado. Por favor vuelve a iniciar sesión con Google.');
+    }
+    throw new Error(`Error al enviar la prueba de correo vía Gmail API: ${errorDetail}`);
   }
 
   const data = await res.json();
   return {
     success: true,
     messageId: data.id,
+    threadId: data.threadId,
     recipient: targetEmail,
     timestamp: now.toISOString(),
+    labelIds: data.labelIds,
   };
 }
-

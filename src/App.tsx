@@ -275,19 +275,20 @@ export default function App() {
         console.error('Error al guardar en Google Sheets:', err);
       }
 
-      // 2. Send email copy to sapaser@gmail.com (test) and departamentoja@amapanama.org
+      // 2. Send email copy to sapaser@gmail.com (test)
       try {
-        await sendCamporeeNotificationEmail(
+        const sendRes = await sendCamporeeNotificationEmail(
           googleAccessToken,
           newRecord,
           googleUser?.email || undefined,
           {
             primaryTo: 'sapaser@gmail.com',
-            ccOfficial: true,
+            ccOfficial: false,
             isTestMode: true,
           }
         );
         emailOk = true;
+        console.log('Correo de preinscripción enviado a sapaser@gmail.com:', sendRes.messageId);
       } catch (err: any) {
         console.error('Error al enviar copia por Gmail:', err);
       }
@@ -307,21 +308,22 @@ export default function App() {
       const createdSheetUrl = await appendSubmissionToSheet(googleAccessToken, activeSubmission);
       setSheetUrl(createdSheetUrl);
       localStorage.setItem('amap_camporee_sheet_url_2027', createdSheetUrl);
-      await sendCamporeeNotificationEmail(
+      const sendRes = await sendCamporeeNotificationEmail(
         googleAccessToken,
         activeSubmission,
         googleUser?.email || undefined,
         {
           primaryTo: 'sapaser@gmail.com',
-          ccOfficial: true,
+          ccOfficial: false,
           isTestMode: true,
         }
       );
       setSyncStatus({ googleSynced: true, emailSent: true });
       sounds.playSuccess();
-      alert('¡Sincronizado con éxito en Google Sheets y copia de prueba enviada a sapaser@gmail.com y departamentoja@amapanama.org!');
+      console.log('Sincronización manual completada con éxito. Message ID:', sendRes.messageId);
     } catch (err: any) {
-      alert(`Error al sincronizar: ${err.message || 'Error desconocido'}`);
+      console.error('Error al sincronizar:', err);
+      sounds.playError();
     } finally {
       setIsSyncing(false);
     }
@@ -330,19 +332,10 @@ export default function App() {
   // Sync all submissions to Google Sheets from the drawer
   const handleSyncAllToSheet = async () => {
     if (!googleAccessToken) {
-      alert('Por favor conecta tu cuenta de Google arriba primero.');
       return;
     }
 
     if (submissions.length === 0) return;
-
-    if (
-      !confirm(
-        `¿Deseas sincronizar los ${submissions.length} registros a la hoja de Google Sheets «Preinscripciones VII Camporee AMAP 2027»?`
-      )
-    ) {
-      return;
-    }
 
     setIsSyncing(true);
     try {
