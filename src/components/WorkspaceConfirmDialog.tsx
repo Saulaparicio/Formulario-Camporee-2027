@@ -72,8 +72,9 @@ export const WorkspaceConfirmDialog: React.FC<Props> = ({
               <div className="text-xs">
                 <strong className="text-white block font-semibold">Enviar copia por Gmail:</strong>
                 <span>
-                  Se enviará una copia oficial con todos los detalles de la preinscripción a{' '}
-                  <strong className="text-amber-400 font-mono">departamentoja@amapanama.org</strong> y con copia a{' '}
+                  Se enviará la copia de verificación a{' '}
+                  <strong className="text-amber-400 font-mono">sapaser@gmail.com</strong> (prueba de recepción activa) y con copia a{' '}
+                  <strong className="text-slate-200 font-mono">departamentoja@amapanama.org</strong> y{' '}
                   <strong className="text-slate-200">{formData.contactEmail}</strong>.
                 </span>
               </div>

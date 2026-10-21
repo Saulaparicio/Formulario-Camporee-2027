@@ -32,6 +32,7 @@ interface Props {
   emailSent?: boolean;
   onSyncGoogleNow?: () => void;
   isSyncingGoogle?: boolean;
+  onOpenEmailTest?: () => void;
 }
 
 export const SuccessView: React.FC<Props> = ({
@@ -43,6 +44,7 @@ export const SuccessView: React.FC<Props> = ({
   emailSent,
   onSyncGoogleNow,
   isSyncingGoogle,
+  onOpenEmailTest,
 }) => {
   const credentialRef = useRef<HTMLDivElement>(null);
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
@@ -164,10 +166,22 @@ export const SuccessView: React.FC<Props> = ({
           ) : null}
 
           {emailSent ? (
-            <div className="flex items-center gap-2 rounded-xl bg-blue-500/15 border border-blue-500/30 px-3.5 py-1.5 text-xs text-blue-300">
+            <div className="flex flex-wrap items-center justify-center gap-2 rounded-xl bg-blue-500/15 border border-blue-500/30 px-3.5 py-1.5 text-xs text-blue-300">
               <Mail className="w-4 h-4 text-blue-400 shrink-0" />
-              <span>Copia enviada a <strong className="font-mono">departamentoja@amapanama.org</strong></span>
+              <span>
+                Copia de prueba entregada a <strong className="font-mono text-amber-300">sapaser@gmail.com</strong>
+              </span>
+              <span className="text-slate-400">• AMAP oficial: departamentoja@amapanama.org</span>
             </div>
+          ) : onOpenEmailTest ? (
+            <button
+              type="button"
+              onClick={onOpenEmailTest}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-blue-500/15 hover:bg-blue-500/25 border border-blue-500/30 px-3 py-1.5 text-xs font-semibold text-blue-300 transition-colors"
+            >
+              <Mail className="w-4 h-4 text-blue-400" />
+              <span>Enviar prueba a sapaser@gmail.com</span>
+            </button>
           ) : null}
         </div>
 

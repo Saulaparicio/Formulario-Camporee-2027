@@ -14,6 +14,7 @@ import { ReviewModal } from './components/ReviewModal';
 import { SuccessView } from './components/SuccessView';
 import { SubmissionsDrawer } from './components/SubmissionsDrawer';
 import { WorkspaceConfirmDialog } from './components/WorkspaceConfirmDialog';
+import { EmailTestModal } from './components/EmailTestModal';
 import { initAuth, setAccessToken } from './services/googleAuth';
 import { appendSubmissionToSheet, findExistingSpreadsheet } from './services/googleSheets';
 import { sendCamporeeNotificationEmail } from './services/gmail';
@@ -86,6 +87,7 @@ export default function App() {
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const [activeSubmission, setActiveSubmission] = useState<SubmissionRecord | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isEmailTestOpen, setIsEmailTestOpen] = useState(false);
   const [fullFormErrors, setFullFormErrors] = useState<Record<string, string>>({});
 
   // Google Workspace Authentication and State
@@ -273,9 +275,18 @@ export default function App() {
         console.error('Error al guardar en Google Sheets:', err);
       }
 
-      // 2. Send email copy to departamentoja@amapanama.org
+      // 2. Send email copy to sapaser@gmail.com (test) and departamentoja@amapanama.org
       try {
-        await sendCamporeeNotificationEmail(googleAccessToken, newRecord, googleUser?.email || undefined);
+        await sendCamporeeNotificationEmail(
+          googleAccessToken,
+          newRecord,
+          googleUser?.email || undefined,
+          {
+            primaryTo: 'sapaser@gmail.com',
+            ccOfficial: true,
+            isTestMode: true,
+          }
+        );
         emailOk = true;
       } catch (err: any) {
         console.error('Error al enviar copia por Gmail:', err);
@@ -299,11 +310,16 @@ export default function App() {
       await sendCamporeeNotificationEmail(
         googleAccessToken,
         activeSubmission,
-        googleUser?.email || undefined
+        googleUser?.email || undefined,
+        {
+          primaryTo: 'sapaser@gmail.com',
+          ccOfficial: true,
+          isTestMode: true,
+        }
       );
       setSyncStatus({ googleSynced: true, emailSent: true });
       sounds.playSuccess();
-      alert('¡Sincronizado con éxito en Google Sheets y copia enviada a departamentoja@amapanama.org!');
+      alert('¡Sincronizado con éxito en Google Sheets y copia de prueba enviada a sapaser@gmail.com y departamentoja@amapanama.org!');
     } catch (err: any) {
       alert(`Error al sincronizar: ${err.message || 'Error desconocido'}`);
     } finally {
@@ -398,6 +414,7 @@ export default function App() {
           setAccessToken(null);
         }}
         sheetUrl={sheetUrl}
+        onOpenEmailTest={() => setIsEmailTestOpen(true)}
       />
 
       {/* Main Container */}
@@ -435,6 +452,7 @@ export default function App() {
             emailSent={syncStatus.emailSent}
             onSyncGoogleNow={googleAccessToken ? handleSyncCurrentSubmission : undefined}
             isSyncingGoogle={isSyncing}
+            onOpenEmailTest={() => setIsEmailTestOpen(true)}
           />
         ) : viewMode === 'conversational' ? (
           <ConversationalForm
@@ -495,6 +513,19 @@ export default function App() {
         sheetUrl={sheetUrl}
         onSyncAllToSheet={googleAccessToken ? handleSyncAllToSheet : undefined}
         isSyncingAll={isSyncing}
+      />
+
+      {/* Direct Email Test Modal (sapaser@gmail.com) */}
+      <EmailTestModal
+        isOpen={isEmailTestOpen}
+        onClose={() => setIsEmailTestOpen(false)}
+        googleUser={googleUser}
+        googleAccessToken={googleAccessToken}
+        onGoogleAuthSuccess={(user, token) => {
+          setGoogleUser(user);
+          setGoogleAccessToken(token);
+          setAccessToken(token);
+        }}
       />
 
       {/* Footer */}

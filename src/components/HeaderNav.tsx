@@ -2,7 +2,16 @@ import React from 'react';
 import { User } from 'firebase/auth';
 import { ConquistadoresLogo } from './ConquistadoresLogo';
 import { GoogleWorkspaceStatus } from './GoogleWorkspaceStatus';
-import { Volume2, VolumeX, MessageSquareText, FileSpreadsheet, Sparkles, Calendar, Layers } from 'lucide-react';
+import {
+  Volume2,
+  VolumeX,
+  MessageSquareText,
+  FileSpreadsheet,
+  Sparkles,
+  Calendar,
+  Layers,
+  MailCheck,
+} from 'lucide-react';
 import { sounds } from '../utils/audio';
 
 interface Props {
@@ -17,6 +26,7 @@ interface Props {
   onGoogleAuthSuccess: (user: User, token: string) => void;
   onGoogleAuthClear: () => void;
   sheetUrl?: string | null;
+  onOpenEmailTest: () => void;
 }
 
 export const HeaderNav: React.FC<Props> = ({
@@ -31,6 +41,7 @@ export const HeaderNav: React.FC<Props> = ({
   onGoogleAuthSuccess,
   onGoogleAuthClear,
   sheetUrl,
+  onOpenEmailTest,
 }) => {
   const toggleSound = () => {
     const next = !soundEnabled;
@@ -76,6 +87,21 @@ export const HeaderNav: React.FC<Props> = ({
               onAuthClear={onGoogleAuthClear}
               sheetUrl={sheetUrl}
             />
+
+            {/* Direct Email Test Button (sapaser@gmail.com) */}
+            <button
+              type="button"
+              onClick={() => {
+                sounds.playClick();
+                onOpenEmailTest();
+              }}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-amber-500/40 bg-amber-500/15 hover:bg-amber-500/25 px-2.5 py-1 text-xs font-bold text-amber-300 transition-all cursor-pointer shadow-sm hover:border-amber-400"
+              title="Probar envío de correo de prueba a sapaser@gmail.com"
+            >
+              <MailCheck className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span className="hidden sm:inline">Prueba:</span>
+              <span className="font-mono text-[11px] text-white">sapaser@gmail.com</span>
+            </button>
 
             {/* View Mode Switcher */}
             <div className="flex items-center p-0.5 rounded-xl bg-slate-900 border border-slate-800 shadow-inner">

@@ -281,8 +281,9 @@ export const ReviewModal: React.FC<Props> = ({
           </div>
           <p className="text-slate-300">
             • Se guardará una copia con el Folio en tu Google Sheets oficial.{' '}
-            <br />• Se notificará con copia detallada a{' '}
-            <strong className="text-amber-300 font-mono">departamentoja@amapanama.org</strong>.
+            <br />• Se notificará con copia de prueba directa a{' '}
+            <strong className="text-amber-300 font-mono">sapaser@gmail.com</strong> y a{' '}
+            <strong className="text-slate-200 font-mono">departamentoja@amapanama.org</strong>.
           </p>
         </div>
 
