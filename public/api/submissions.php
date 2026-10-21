@@ -192,16 +192,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
         curl_setopt($ch, CURLOPT_HTTPHEADER, [
             'Authorization: Bearer ' . $RESEND_API_KEY,
-            'Content-Type: application/json'
+            'Content-Type: application/json',
+            'User-Agent: Resend-PHP/1.0'
         ]);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+        // SSL fallback if Hostinger curl CA bundle is missing
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
         $response = curl_exec($ch);
+        $curlError = curl_error($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
 
+        $resData = json_decode($response, true);
         if ($httpCode >= 200 && $httpCode < 300) {
-            $resData = json_decode($response, true);
             $emailSent = true;
             $messageId = $resData['id'] ?? null;
+        } else {
+            $debugError = [
+                'httpCode' => $httpCode,
+                'curlError' => $curlError,
+                'resendResponse' => $resData ?: $response,
+                'keyLength' => strlen($RESEND_API_KEY)
+            ];
         }
     }
 
@@ -210,6 +222,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'submission' => $submission,
         'emailSent' => $emailSent,
         'emailMessageId' => $messageId,
+        'debug' => $debugError ?? null,
         'totalCount' => count($current)
     ], JSON_UNESCAPED_UNICODE);
     exit;
