@@ -119,6 +119,39 @@ app.post('/api/submissions', async (req, res) => {
         .notice-box { margin: 16px 20px; padding: 14px 16px; background-color: #0f172a; border-radius: 10px; border-left: 4px solid #f59e0b; font-size: 12px; color: #cbd5e1; line-height: 1.5; }
         .footer { padding: 16px 20px; background-color: #0f172a; text-align: center; font-size: 11px; color: #64748b; border-top: 1px solid #334155; line-height: 1.5; }`;
 
+        const appUrl = process.env.APP_URL || 'https://camporee2027.smartideamktg.com';
+        const logoDownloadUrl = `${appUrl}/api/submissions.php?download=logo&folio=${encodeURIComponent(submission.folio)}`;
+        const proofDownloadUrl = `${appUrl}/api/submissions.php?download=proof&folio=${encodeURIComponent(submission.folio)}`;
+
+        const hasLogo = submission.clubLogo
+          ? `<a href="${logoDownloadUrl}" target="_blank" style="display: inline-block; background-color: #0284c7; color: #ffffff !important; padding: 7px 14px; border-radius: 8px; font-size: 12px; font-weight: 700; text-decoration: none; border: 1px solid #38bdf8; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">📥 Descargar / Ver Logo (${submission.clubLogoName || 'Logo Oficial'})</a>`
+          : '<span style="color: #94a3b8; font-style: italic;">No adjuntado</span>';
+
+        const hasProof = submission.paymentProof
+          ? `<a href="${proofDownloadUrl}" target="_blank" style="display: inline-block; background-color: #059669; color: #ffffff !important; padding: 7px 14px; border-radius: 8px; font-size: 12px; font-weight: 700; text-decoration: none; border: 1px solid #34d399; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">📄 Descargar / Ver Comprobante (${submission.paymentProofName || 'Comprobante'})</a>`
+          : '<span style="color: #94a3b8; font-style: italic;">No adjuntado</span>';
+
+        // Prepare physical attachments for Resend
+        const attachments: Array<{ filename: string; content: string }> = [];
+        if (submission.clubLogo) {
+          const match = submission.clubLogo.match(/^data:([^;]+);base64,(.*)$/s);
+          if (match) {
+            attachments.push({
+              filename: submission.clubLogoName || `${submission.folio}_logo.png`,
+              content: match[2].trim(),
+            });
+          }
+        }
+        if (submission.paymentProof) {
+          const match = submission.paymentProof.match(/^data:([^;]+);base64,(.*)$/s);
+          if (match) {
+            attachments.push({
+              filename: submission.paymentProofName || `${submission.folio}_comprobante.pdf`,
+              content: match[2].trim(),
+            });
+          }
+        }
+
         // 1. Send confirmation to Applicant (Director / Registrant)
         if (hasValidContactEmail) {
           const applicantHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${css}</style></head><body>
@@ -147,17 +180,17 @@ app.post('/api/submissions', async (req, res) => {
                 <tr><td class="label">Zona AMAP:</td><td class="val">Zona ${submission.amapZone}</td></tr>
                 <tr><td class="label">Pastor Distrital:</td><td class="val">${submission.districtPastor}</td></tr>
               </table>
-              <h3 style="color: #60a5fa; font-size: 13px; text-transform: uppercase; margin: 16px 0 6px 0;">Datos del Director(a)</h3>
+              <h3 style="color: #60a5fa; font-size: 13px; text-transform: uppercase; margin: 16px 0 6px 0;">Datos del Director(a) y Archivos</h3>
               <table>
                 <tr><td class="label">Director(a):</td><td class="val">${submission.directorName}</td></tr>
                 <tr><td class="label">Teléfono:</td><td class="val">${submission.contactPhone}</td></tr>
                 <tr><td class="label">Correo:</td><td class="val">${contactEmail}</td></tr>
-                <tr><td class="label">Logo del Club:</td><td class="val">${submission.clubLogo ? '✓ Adjuntado' : 'No adjuntado'}</td></tr>
-                <tr><td class="label">Comprobante Pago:</td><td class="val">${submission.paymentProof ? '✓ Adjuntado' : 'No adjuntado'}</td></tr>
+                <tr><td class="label">Logo del Club:</td><td class="val">${hasLogo}</td></tr>
+                <tr><td class="label">Comprobante Pago:</td><td class="val">${hasProof}</td></tr>
               </table>
             </div>
             <div class="notice-box">
-              💡 <strong>Próximos pasos:</strong> El Ministerio Juvenil de la AMAP estará revisando la documentación y los comprobantes. Conserva tu folio <strong>${submission.folio}</strong> para cualquier consulta o trámite. Si necesitas hacer algún ajuste, puedes responder directamente a este correo.
+              💡 <strong>Próximos pasos:</strong> El Ministerio Juvenil de la AMAP estará revisando la documentación y los comprobantes adjuntos. Puedes hacer clic en los botones de arriba para descargar o verificar los archivos que subiste. Conserva tu folio <strong>${submission.folio}</strong> para cualquier consulta o trámite. Si necesitas hacer algún ajuste, puedes responder directamente a este correo.
             </div>
             <div class="footer">
               VII Camporee AMAP 2027 • Asociación Metropolitana de Panamá<br>
@@ -171,7 +204,8 @@ app.post('/api/submissions', async (req, res) => {
             reply_to: adminEmail,
             subject: `🏕️ ¡Preinscripción Confirmada! Club ${submission.clubName} (Folio ${submission.folio})`,
             html: applicantHtml,
-            text: `VII Camporee AMAP 2027 - Preinscripción recibida. Folio: ${submission.folio} - Club: ${submission.clubName}`,
+            text: `VII Camporee AMAP 2027 - Preinscripción recibida. Folio: ${submission.folio} - Club: ${submission.clubName}. Descargar comprobante: ${proofDownloadUrl}`,
+            attachments: attachments.length > 0 ? attachments : undefined,
           });
 
           if (!applicantError && applicantData?.id) {
@@ -197,7 +231,7 @@ app.post('/api/submissions', async (req, res) => {
               <div style="font-size: 12px; color: #94a3b8; margin-top: 4px;">Club: ${submission.clubName} • Zona ${submission.amapZone}</div>
             </div>
             <div class="content">
-              <h3 style="color: #f59e0b; font-size: 13px; text-transform: uppercase; margin: 16px 0 6px 0;">Datos Registrados</h3>
+              <h3 style="color: #f59e0b; font-size: 13px; text-transform: uppercase; margin: 16px 0 6px 0;">Datos Registrados y Archivos</h3>
               <table>
                 <tr><td class="label">Club:</td><td class="val">${submission.clubName}</td></tr>
                 <tr><td class="label">Iglesia:</td><td class="val">${submission.church}</td></tr>
@@ -206,10 +240,13 @@ app.post('/api/submissions', async (req, res) => {
                 <tr><td class="label">Director(a):</td><td class="val">${submission.directorName}</td></tr>
                 <tr><td class="label">Teléfono:</td><td class="val">${submission.contactPhone}</td></tr>
                 <tr><td class="label">Correo:</td><td class="val">${contactEmail}</td></tr>
-                <tr><td class="label">Logo:</td><td class="val">${submission.clubLogo ? '✓ Adjuntado' : 'No adjuntado'}</td></tr>
-                <tr><td class="label">Comprobante:</td><td class="val">${submission.paymentProof ? '✓ Adjuntado' : 'No adjuntado'}</td></tr>
+                <tr><td class="label">Logo del Club:</td><td class="val">${hasLogo}</td></tr>
+                <tr><td class="label">Comprobante Pago:</td><td class="val">${hasProof}</td></tr>
                 <tr><td class="label">Notas:</td><td class="val">${submission.notes || 'Ninguna'}</td></tr>
               </table>
+            </div>
+            <div class="notice-box">
+              📌 <strong>Gestión Administrativa:</strong> Los archivos adjuntos han sido incluidos en este correo y también puedes descargarlos en cualquier momento haciendo clic en los botones azules y verdes de la tabla.
             </div>
             <div class="footer">
               Panel Central • Asociación Metropolitana de Panamá
@@ -222,7 +259,8 @@ app.post('/api/submissions', async (req, res) => {
             reply_to: hasValidContactEmail ? contactEmail : adminEmail,
             subject: `📋 [NUEVO REGISTRO] Club ${submission.clubName} - Folio ${submission.folio} (Zona ${submission.amapZone})`,
             html: adminHtml,
-            text: `Nueva Preinscripción Folio: ${submission.folio} - Club: ${submission.clubName}`,
+            text: `Nueva Preinscripción Folio: ${submission.folio} - Club: ${submission.clubName}. Descargar comprobante: ${proofDownloadUrl}`,
+            attachments: attachments.length > 0 ? attachments : undefined,
           });
 
           if (!adminError && adminData?.id) {
@@ -331,6 +369,44 @@ app.post('/api/send-email', async (req, res) => {
     console.error('Error al procesar envío en /api/send-email:', err);
     return res.status(500).json({ success: false, message: err.message });
   }
+});
+
+// Download endpoint for Logo and Payment Proof
+const handleAttachmentDownload = (req: any, res: any) => {
+  const type = (req.query.download || req.query.type || '').toString().toLowerCase();
+  const folio = (req.query.folio || '').toString().trim();
+  if (!folio) return res.status(400).send('Folio requerido');
+
+  const submissions = getStoredSubmissions();
+  const target = submissions.find((s) => s.folio === folio);
+  if (!target) return res.status(404).send(`Folio no encontrado (${folio})`);
+
+  const dataUri = type === 'logo' ? target.clubLogo : target.paymentProof;
+  const defaultExt = type === 'logo' ? 'png' : 'pdf';
+  const fileName = type === 'logo'
+    ? (target.clubLogoName || `${folio}_logo.${defaultExt}`)
+    : (target.paymentProofName || `${folio}_comprobante.${defaultExt}`);
+
+  if (!dataUri) return res.status(404).send('Archivo no adjuntado en este registro');
+
+  const match = dataUri.match(/^data:([^;]+);base64,(.*)$/s);
+  if (!match) return res.status(400).send('Formato inválido');
+
+  const mime = match[1];
+  const buffer = Buffer.from(match[2], 'base64');
+
+  res.setHeader('Content-Type', mime);
+  res.setHeader('Content-Length', buffer.length);
+  res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(fileName)}"`);
+  return res.send(buffer);
+};
+
+app.get('/api/submissions/download', handleAttachmentDownload);
+app.get('/api/submissions.php', (req, res, next) => {
+  if (req.query.download && req.query.folio) {
+    return handleAttachmentDownload(req, res);
+  }
+  next();
 });
 
 // Serve frontend with Vite in dev, or dist static in production

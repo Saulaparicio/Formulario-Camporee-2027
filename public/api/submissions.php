@@ -10,6 +10,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 $DATA_FILE = __DIR__ . '/submissions.json';
+$APP_URL = trim((string)getenv('APP_URL')) ?: 'https://camporee2027.smartideamktg.com';
 
 // Camporee 2027 official Resend API Key (base64 encoded to comply with git push rules)
 $RESEND_API_KEY = trim((string)getenv('RESEND_API_KEY'));
@@ -33,7 +34,7 @@ function saveSubmissions($file, $list) {
     file_put_contents($file, json_encode($list, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 }
 
-function sendResendMail($apiKey, $from, $to, $subject, $html, $text = '', $replyTo = null) {
+function sendResendMail($apiKey, $from, $to, $subject, $html, $text = '', $replyTo = null, $attachments = []) {
     $payload = [
         'from' => $from,
         'to' => is_array($to) ? $to : [$to],
@@ -43,6 +44,9 @@ function sendResendMail($apiKey, $from, $to, $subject, $html, $text = '', $reply
     ];
     if (!empty($replyTo)) {
         $payload['reply_to'] = $replyTo;
+    }
+    if (!empty($attachments) && is_array($attachments)) {
+        $payload['attachments'] = $attachments;
     }
 
     $ch = curl_init('https://api.resend.com/emails');
@@ -54,7 +58,7 @@ function sendResendMail($apiKey, $from, $to, $subject, $html, $text = '', $reply
         'Content-Type: application/json',
         'User-Agent: Resend-PHP/1.0'
     ]);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 20);
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
     $response = curl_exec($ch);
     $curlError = curl_error($ch);
@@ -71,7 +75,59 @@ function sendResendMail($apiKey, $from, $to, $subject, $html, $text = '', $reply
     ];
 }
 
-// 1. Export CSV
+// 1. Download Endpoint for Attachments (Logo or Payment Proof)
+if (isset($_GET['download']) && !empty($_GET['folio'])) {
+    $type = strtolower(trim($_GET['download'])); // 'logo' or 'proof'
+    $folio = trim($_GET['folio']);
+    $submissions = readSubmissions($DATA_FILE);
+
+    $target = null;
+    foreach ($submissions as $s) {
+        if (($s['folio'] ?? '') === $folio) {
+            $target = $s;
+            break;
+        }
+    }
+
+    if (!$target) {
+        http_response_code(404);
+        header('Content-Type: text/plain; charset=utf-8');
+        echo "Error: Folio no encontrado ($folio)";
+        exit;
+    }
+
+    $dataUri = ($type === 'logo') ? ($target['clubLogo'] ?? null) : ($target['paymentProof'] ?? null);
+    $defaultExt = ($type === 'logo') ? 'png' : 'pdf';
+    $fileName = ($type === 'logo') 
+        ? (!empty($target['clubLogoName']) ? $target['clubLogoName'] : ($folio . '_logo.' . $defaultExt))
+        : (!empty($target['paymentProofName']) ? $target['paymentProofName'] : ($folio . '_comprobante.' . $defaultExt));
+
+    if (empty($dataUri)) {
+        http_response_code(404);
+        header('Content-Type: text/plain; charset=utf-8');
+        echo "Error: Este registro no tiene un archivo de " . ($type === 'logo' ? 'Logo' : 'Comprobante de Pago') . " adjuntado.";
+        exit;
+    }
+
+    if (preg_match('/^data:([^;]+);base64,(.*)$/s', $dataUri, $matches)) {
+        $mime = $matches[1];
+        $binary = base64_decode($matches[2]);
+
+        header('Content-Type: ' . $mime);
+        header('Content-Length: ' . strlen($binary));
+        header('Content-Disposition: inline; filename="' . basename($fileName) . '"');
+        header('Cache-Control: public, max-age=86400');
+        echo $binary;
+        exit;
+    }
+
+    http_response_code(400);
+    header('Content-Type: text/plain; charset=utf-8');
+    echo 'Error: Formato de archivo inválido';
+    exit;
+}
+
+// 2. Export CSV
 if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     $submissions = readSubmissions($DATA_FILE);
     header('Content-Type: text/csv; charset=utf-8');
@@ -108,7 +164,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     exit;
 }
 
-// 2. GET Submissions
+// 3. GET Submissions
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $submissions = readSubmissions($DATA_FILE);
     echo json_encode([
@@ -119,7 +175,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     exit;
 }
 
-// 3. POST Submission + Dispatch Resend Email
+// 4. POST Submission + Dispatch Resend Email with Download Links & Attachments
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $input = file_get_contents('php://input');
     $submission = json_decode($input, true);
@@ -159,8 +215,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $phoneEsc = htmlspecialchars($submission['contactPhone'] ?? '');
         $emailEsc = htmlspecialchars($contactEmail);
         $foundationEsc = htmlspecialchars($submission['foundationYear'] ?? '');
-        $hasLogo = !empty($submission['clubLogo']) ? '✓ Adjuntado' : 'No adjuntado';
-        $hasProof = !empty($submission['paymentProof']) ? '✓ Adjuntado' : 'No adjuntado';
+
+        // Direct download URLs for the attachments
+        $logoDownloadUrl = $APP_URL . '/api/submissions.php?download=logo&folio=' . rawurlencode($submission['folio']);
+        $proofDownloadUrl = $APP_URL . '/api/submissions.php?download=proof&folio=' . rawurlencode($submission['folio']);
+
+        // Download link / button for Logo
+        if (!empty($submission['clubLogo'])) {
+            $logoLabel = !empty($submission['clubLogoName']) ? htmlspecialchars($submission['clubLogoName']) : 'Logo Oficial';
+            $hasLogo = '<a href="' . $logoDownloadUrl . '" target="_blank" style="display: inline-block; background-color: #0284c7; color: #ffffff !important; padding: 7px 14px; border-radius: 8px; font-size: 12px; font-weight: 700; text-decoration: none; border: 1px solid #38bdf8; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">📥 Descargar / Ver Logo (' . $logoLabel . ')</a>';
+        } else {
+            $hasLogo = '<span style="color: #94a3b8; font-style: italic;">No adjuntado</span>';
+        }
+
+        // Download link / button for Payment Proof
+        if (!empty($submission['paymentProof'])) {
+            $proofLabel = !empty($submission['paymentProofName']) ? htmlspecialchars($submission['paymentProofName']) : 'Comprobante';
+            $hasProof = '<a href="' . $proofDownloadUrl . '" target="_blank" style="display: inline-block; background-color: #059669; color: #ffffff !important; padding: 7px 14px; border-radius: 8px; font-size: 12px; font-weight: 700; text-decoration: none; border: 1px solid #34d399; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">📄 Descargar / Ver Comprobante (' . $proofLabel . ')</a>';
+        } else {
+            $hasProof = '<span style="color: #94a3b8; font-style: italic;">No adjuntado</span>';
+        }
+
+        // Extract physical attachments for Resend
+        $resendAttachments = [];
+        if (!empty($submission['clubLogo']) && preg_match('/^data:([^;]+);base64,(.*)$/s', $submission['clubLogo'], $m)) {
+            $lName = !empty($submission['clubLogoName']) ? $submission['clubLogoName'] : ($submission['folio'] . '_logo.png');
+            $resendAttachments[] = [
+                'filename' => $lName,
+                'content' => trim($m[2])
+            ];
+        }
+        if (!empty($submission['paymentProof']) && preg_match('/^data:([^;]+);base64,(.*)$/s', $submission['paymentProof'], $m)) {
+            $pName = !empty($submission['paymentProofName']) ? $submission['paymentProofName'] : ($submission['folio'] . '_comprobante.pdf');
+            $resendAttachments[] = [
+                'filename' => $pName,
+                'content' => trim($m[2])
+            ];
+        }
 
         // Base styles for responsive email
         $css = 'body { font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif; background-color: #0f172a; color: #f8fafc; margin: 0; padding: 20px; }
@@ -174,8 +265,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .badge-ok { display: inline-block; background-color: #064e3b; color: #34d399; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 12px; margin-top: 6px; border: 1px solid #059669; }
         .content { padding: 0 20px 20px 20px; }
         table { width: 100%; border-collapse: collapse; margin-top: 8px; background-color: #0f172a; border-radius: 8px; overflow: hidden; }
-        td { padding: 9px 12px; font-size: 13px; border-bottom: 1px solid #334155; }
-        td.label { color: #94a3b8; font-weight: 600; width: 40%; }
+        td { padding: 10px 12px; font-size: 13px; border-bottom: 1px solid #334155; vertical-align: middle; }
+        td.label { color: #94a3b8; font-weight: 600; width: 35%; }
         td.val { color: #ffffff; font-weight: 700; }
         .notice-box { margin: 16px 20px; padding: 14px 16px; background-color: #0f172a; border-radius: 10px; border-left: 4px solid #f59e0b; font-size: 12px; color: #cbd5e1; line-height: 1.5; }
         .footer { padding: 16px 20px; background-color: #0f172a; text-align: center; font-size: 11px; color: #64748b; border-top: 1px solid #334155; line-height: 1.5; }';
@@ -209,7 +300,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                   <tr><td class="label">Zona AMAP:</td><td class="val">Zona ' . $amapZoneEsc . '</td></tr>
                   <tr><td class="label">Pastor Distrital:</td><td class="val">' . $pastorEsc . '</td></tr>
                 </table>
-                <h3 style="color: #60a5fa; font-size: 13px; text-transform: uppercase; margin: 16px 0 6px 0;">Datos del Director(a)</h3>
+                <h3 style="color: #60a5fa; font-size: 13px; text-transform: uppercase; margin: 16px 0 6px 0;">Datos del Director(a) y Archivos</h3>
                 <table>
                   <tr><td class="label">Director(a):</td><td class="val">' . $directorNameEsc . '</td></tr>
                   <tr><td class="label">Teléfono:</td><td class="val">' . $phoneEsc . '</td></tr>
@@ -219,7 +310,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </table>
               </div>
               <div class="notice-box">
-                💡 <strong>Próximos pasos:</strong> El Ministerio Juvenil de la AMAP estará revisando la documentación y los comprobantes. Conserva tu folio <strong>' . $folioEsc . '</strong> para cualquier consulta o trámite. Si necesitas hacer algún ajuste, puedes responder directamente a este correo.
+                💡 <strong>Próximos pasos:</strong> El Ministerio Juvenil de la AMAP estará revisando la documentación y los comprobantes adjuntos. Puedes hacer clic en los botones de arriba para descargar o verificar los archivos que subiste. Conserva tu folio <strong>' . $folioEsc . '</strong> para cualquier consulta o trámite. Si necesitas hacer algún ajuste, puedes responder directamente a este correo.
               </div>
               <div class="footer">
                 VII Camporee AMAP 2027 • Asociación Metropolitana de Panamá<br>
@@ -233,8 +324,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $contactEmail,
                 $subjectApplicant,
                 $htmlApplicant,
-                "VII Camporee AMAP 2027 - Preinscripción recibida. Folio: {$submission['folio']} - Club: {$submission['clubName']}",
-                $ADMIN_EMAIL
+                "VII Camporee AMAP 2027 - Preinscripción recibida. Folio: {$submission['folio']} - Club: {$submission['clubName']}. Descargar comprobante: $proofDownloadUrl",
+                $ADMIN_EMAIL,
+                $resendAttachments
             );
         }
 
@@ -253,7 +345,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div style="font-size: 12px; color: #94a3b8; margin-top: 4px;">Club: ' . $clubNameEsc . ' • Zona ' . $amapZoneEsc . '</div>
               </div>
               <div class="content">
-                <h3 style="color: #f59e0b; font-size: 13px; text-transform: uppercase; margin: 16px 0 6px 0;">Datos Registrados</h3>
+                <h3 style="color: #f59e0b; font-size: 13px; text-transform: uppercase; margin: 16px 0 6px 0;">Datos Registrados y Archivos</h3>
                 <table>
                   <tr><td class="label">Club:</td><td class="val">' . $clubNameEsc . '</td></tr>
                   <tr><td class="label">Iglesia:</td><td class="val">' . $churchEsc . '</td></tr>
@@ -262,10 +354,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                   <tr><td class="label">Director(a):</td><td class="val">' . $directorNameEsc . '</td></tr>
                   <tr><td class="label">Teléfono:</td><td class="val">' . $phoneEsc . '</td></tr>
                   <tr><td class="label">Correo:</td><td class="val">' . $emailEsc . '</td></tr>
-                  <tr><td class="label">Logo:</td><td class="val">' . $hasLogo . '</td></tr>
-                  <tr><td class="label">Comprobante:</td><td class="val">' . $hasProof . '</td></tr>
+                  <tr><td class="label">Logo del Club:</td><td class="val">' . $hasLogo . '</td></tr>
+                  <tr><td class="label">Comprobante Pago:</td><td class="val">' . $hasProof . '</td></tr>
                   <tr><td class="label">Notas:</td><td class="val">' . htmlspecialchars($submission['notes'] ?? 'Ninguna') . '</td></tr>
                 </table>
+              </div>
+              <div class="notice-box">
+                📌 <strong>Gestión Administrativa:</strong> Los archivos adjuntos han sido incluidos en este correo y también puedes descargarlos en cualquier momento haciendo clic en los botones azules y verdes de la tabla.
               </div>
               <div class="footer">
                 Panel Central • Asociación Metropolitana de Panamá
@@ -278,8 +373,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $ADMIN_EMAIL,
                 $subjectAdmin,
                 $htmlAdmin,
-                "Nueva Preinscripción Folio: {$submission['folio']} - Club: {$submission['clubName']}",
-                $hasValidContactEmail ? $contactEmail : $ADMIN_EMAIL
+                "Nueva Preinscripción Folio: {$submission['folio']} - Club: {$submission['clubName']}. Descargar comprobante: $proofDownloadUrl",
+                $hasValidContactEmail ? $contactEmail : $ADMIN_EMAIL,
+                $resendAttachments
             );
         }
     }
