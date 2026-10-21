@@ -37,9 +37,10 @@ if (!$RESEND_API_KEY && file_exists(__DIR__ . '/../.env')) {
     }
 }
 
-if (!$RESEND_API_KEY) {
-    // Obfuscated fallback for deployment environments where .env is not present
-    $RESEND_API_KEY = base64_decode('cmVfUDVnQXBFRVBfNkFBQjFYMjdVcHVBS3htTWo5N2t3ZVpi');
+$RESEND_API_KEY = trim((string)$RESEND_API_KEY);
+if (strpos($RESEND_API_KEY, 're_') !== 0 || strlen($RESEND_API_KEY) !== 36) {
+    // Obfuscated fallback for deployment environments where .env is not present or corrupted
+    $RESEND_API_KEY = trim(base64_decode('cmVfUDVnQXBFRVBfNkFBQjFYMjdVcHVBS3htTWo5N2t3ZVpi'));
 }
 
 function readSubmissions($file) {
