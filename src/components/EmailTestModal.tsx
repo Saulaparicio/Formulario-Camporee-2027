@@ -124,12 +124,12 @@ export const EmailTestModal: React.FC<Props> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md overflow-y-auto">
-      <div className="relative w-full max-w-xl rounded-3xl border border-amber-500/40 bg-slate-900 p-6 sm:p-7 shadow-2xl my-8">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md overflow-y-auto">
+      <div className="relative w-full max-w-xl rounded-3xl border border-amber-500/40 bg-slate-900 p-4 sm:p-7 shadow-2xl my-4 sm:my-8">
         {/* Header */}
-        <div className="flex items-start justify-between border-b border-slate-800 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/40 shadow-inner">
+        <div className="flex items-start justify-between border-b border-slate-800 pb-3 sm:pb-4">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/40 shadow-inner">
               <Mail className="w-6 h-6" />
             </div>
             <div>
@@ -316,11 +316,11 @@ export const EmailTestModal: React.FC<Props> = ({
         </div>
 
         {/* Actions */}
-        <div className="mt-6 flex flex-col sm:flex-row items-center justify-end gap-2.5 pt-4 border-t border-slate-800">
+        <div className="mt-6 flex flex-col-reverse sm:flex-row items-center justify-end gap-2.5 pt-4 border-t border-slate-800">
           <button
             type="button"
             onClick={onClose}
-            className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white text-xs font-semibold transition-colors"
+            className="w-full sm:w-auto px-5 py-2.5 rounded-xl border border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white text-xs font-semibold transition-colors min-h-[44px]"
           >
             Cerrar
           </button>
@@ -329,7 +329,7 @@ export const EmailTestModal: React.FC<Props> = ({
             type="button"
             onClick={handleConnectAndSend}
             disabled={isSending || isReauthorizing || !targetEmail}
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-400 px-5 py-2.5 text-xs font-extrabold text-slate-950 hover:brightness-110 shadow-lg shadow-amber-500/20 transition-all cursor-pointer disabled:opacity-50"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-400 px-5 py-2.5 text-xs font-extrabold text-slate-950 hover:brightness-110 active:scale-95 shadow-lg shadow-amber-500/20 transition-all cursor-pointer disabled:opacity-50 min-h-[44px]"
           >
             {isSending ? (
               <>

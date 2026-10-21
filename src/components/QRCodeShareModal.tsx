@@ -211,12 +211,12 @@ export const QRCodeShareModal: React.FC<Props> = ({
             </div>
           </div>
 
-          {/* Action buttons */}
-          <div className="mt-5 grid grid-cols-2 gap-3 w-full">
+          {/* Action buttons (Stacked on mobile, side-by-side on tablet/desktop) */}
+          <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3 w-full">
             <button
               type="button"
               onClick={handleDownloadPNG}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 py-2.5 px-3 text-xs font-bold text-slate-200 transition-colors shadow-sm cursor-pointer"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 py-3 sm:py-2.5 px-3 text-xs font-bold text-slate-200 transition-colors shadow-sm cursor-pointer min-h-[44px]"
             >
               <Download className="w-4 h-4 text-amber-400" />
               <span>Descargar Imagen QR</span>
@@ -225,7 +225,7 @@ export const QRCodeShareModal: React.FC<Props> = ({
             <button
               type="button"
               onClick={handleShareWhatsApp}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 py-2.5 px-3 text-xs font-bold text-white transition-colors shadow-sm cursor-pointer"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 py-3 sm:py-2.5 px-3 text-xs font-bold text-white transition-colors shadow-sm cursor-pointer min-h-[44px]"
             >
               <Share2 className="w-4 h-4" />
               <span>Enviar por WhatsApp</span>
