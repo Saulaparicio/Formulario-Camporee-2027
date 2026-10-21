@@ -1,0 +1,14 @@
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # Route /api/submissions to /api/submissions.php
+  RewriteRule ^api/submissions/?$ api/submissions.php [L,QSA]
+  RewriteRule ^api/send-email/?$ api/submissions.php [L,QSA]
+  RewriteRule ^api/resend-status/?$ api/submissions.php [L,QSA]
+
+  # Route SPA requests to index.html if file doesn't exist
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule . /index.html [L]
+</IfModule>

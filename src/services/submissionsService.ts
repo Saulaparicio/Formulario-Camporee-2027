@@ -1,18 +1,22 @@
 import { SubmissionRecord } from '../types/form';
 
 /**
- * Loads all central registrations from the server
+ * Loads all central registrations from the server (Node or PHP fallback)
  */
 export async function fetchServerSubmissions(): Promise<SubmissionRecord[]> {
-  try {
-    const res = await fetch('/api/submissions');
-    if (!res.ok) return [];
-    const data = await res.json();
-    return data.submissions || [];
-  } catch (err) {
-    console.warn('No se pudieron obtener las preinscripciones del servidor:', err);
-    return [];
+  const endpoints = ['/api/submissions', '/api/submissions.php'];
+  for (const ep of endpoints) {
+    try {
+      const res = await fetch(ep);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.submissions) return data.submissions;
+      }
+    } catch {
+      // try next
+    }
   }
+  return [];
 }
 
 /**
@@ -21,27 +25,36 @@ export async function fetchServerSubmissions(): Promise<SubmissionRecord[]> {
 export async function submitRegistration(
   submission: SubmissionRecord
 ): Promise<{ success: boolean; emailSent?: boolean; messageId?: string }> {
-  try {
-    const res = await fetch('/api/submissions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(submission),
-    });
+  const endpoints = ['/api/submissions', '/api/submissions.php'];
+  let lastError: any = null;
 
-    const data = await res.json();
-    if (!res.ok || !data.success) {
-      throw new Error(data.message || 'Error al guardar la preinscripción en el servidor');
+  for (const ep of endpoints) {
+    try {
+      const res = await fetch(ep, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(submission),
+      });
+
+      if (!res.ok) {
+        // If 404, try next endpoint
+        continue;
+      }
+
+      const data = await res.json();
+      if (data && data.success) {
+        return {
+          success: true,
+          emailSent: data.emailSent,
+          messageId: data.emailMessageId,
+        };
+      }
+    } catch (err) {
+      lastError = err;
     }
-
-    return {
-      success: true,
-      emailSent: data.emailSent,
-      messageId: data.emailMessageId,
-    };
-  } catch (err: any) {
-    console.error('Error en submitRegistration:', err);
-    throw err;
   }
+
+  throw lastError || new Error('No se pudo conectar con el servicio de preinscripción.');
 }
 
 /**
